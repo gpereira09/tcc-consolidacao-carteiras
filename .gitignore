@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Testes e ferramentas
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Dados locais da aplicação: banco, chaves, backups, uploads e exportações
+# nunca vão para o repositório (contêm dados pessoais e segredos).
+data/carteira.db
+data/carteira.db-wal
+data/carteira.db-shm
+data/.aes256.key
+data/backups/
+data/outbox/
+data/uploads/
+data/exports/
+data/seed/
+
+# Certificados TLS gerados localmente
+certs/
+
+# Ambiente
+.env
+*.local
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Templates XLSX: gerados sob demanda (seed_demo e tela de importação)
+data/templates/
+

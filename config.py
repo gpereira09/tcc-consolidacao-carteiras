@@ -1,0 +1,114 @@
+"""
+Configuração central do sistema de consolidação de carteiras.
+
+Todos os parâmetros ajustáveis ficam concentrados aqui, evitando
+valores mágicos espalhados pelo código (SOMMERVILLE, 2018).
+"""
+from __future__ import annotations
+
+import os
+from datetime import date
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.getenv("CARTEIRA_DATA_DIR", BASE_DIR / "data"))
+UPLOAD_DIR = DATA_DIR / "uploads"
+EXPORT_DIR = DATA_DIR / "exports"
+TEMPLATE_DIR = DATA_DIR / "templates"
+
+DB_PATH = Path(os.getenv("CARTEIRA_DB", DATA_DIR / "carteira.db"))
+DB_URL = f"sqlite:///{DB_PATH}"
+
+JWT_SECRET = os.getenv("CARTEIRA_JWT_SECRET", "tcc-up-2026-chave-de-desenvolvimento")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRACAO_MINUTOS = 15
+REFRESH_EXPIRACAO_DIAS = 7
+RESET_SENHA_MINUTOS = 30
+EXPORT_VALIDADE_HORAS = 24
+TOTP_EMISSOR = "Consolidacao de Carteiras"
+TOTP_JANELA = 1
+
+RATE_LIMIT_REQUISICOES = 60
+RATE_LIMIT_JANELA_SEGUNDOS = 60
+
+AES_KEY_PATH = DATA_DIR / ".aes256.key"
+
+BCRYPT_ROUNDS = 12
+SENHA_MIN_LEN = 8
+MAX_TENTATIVAS_LOGIN = 5
+BLOQUEIO_MINUTOS = 15
+
+MOEDAS = ("BRL", "USD", "EUR", "GBP")
+MOEDA_BASE_PADRAO = "BRL"
+SIMBOLO_MOEDA = {"BRL": "R$", "USD": "US$", "EUR": "€", "GBP": "£"}
+
+CLASSES_LIQUIDAS = ("ACAO", "ETF", "FUNDO", "TESOURO_DIRETO", "FII", "RENDA_FIXA")
+CLASSES_RENDA_VARIAVEL = ("ACAO", "ETF", "FII")
+MERCADOS = ("B3", "NYSE", "NASDAQ", "LSE", "EURONEXT")
+SUBCLASSES_ILIQUIDAS = ("PRIVATE_EQUITY", "VENTURE_CAPITAL", "REAL_ESTATE")
+CLASSE_IMOVEL = "IMOVEL"
+TIPOS_EVENTO_PE = ("CAPITAL_CALL", "DISTRIBUICAO", "NAV_UPDATE")
+TIPOS_DISTRIBUICAO = ("RETORNO_CAPITAL", "GANHO_CAPITAL", "RENDIMENTO")
+TIPOS_TRANSACAO = ("COMPRA", "VENDA", "PROVENTO")
+STATUS_EVENTO_PE = ("PENDENTE", "PAGO", "RECEBIDO", "CANCELADO")
+STATUS_EFETIVADOS = ("PAGO", "RECEBIDO")
+STATUS_POR_TIPO_EVENTO = {
+    "CAPITAL_CALL": {"PENDENTE", "PAGO", "CANCELADO"},
+    "DISTRIBUICAO": {"RECEBIDO", "CANCELADO"},
+    "NAV_UPDATE": {"RECEBIDO"},
+}
+TIPOS_IMOVEL = ("RESIDENCIAL", "COMERCIAL", "INDUSTRIAL", "RURAL")
+PERFIS = ("ADMIN", "COLABORADOR", "CLIENTE")
+NOME_CARTEIRA_PADRAO = "Carteira Principal"
+PERFIS_RISCO = ("CONSERVADOR", "MODERADO", "ARROJADO")
+
+MOEDA_POR_MERCADO = {
+    "B3": "BRL",
+    "NYSE": "USD",
+    "NASDAQ": "USD",
+    "LSE": "GBP",
+    "EURONEXT": "EUR",
+}
+
+PAIS_POR_MERCADO = {
+    "B3": "BRASIL", "NYSE": "ESTADOS UNIDOS", "NASDAQ": "ESTADOS UNIDOS",
+    "LSE": "REINO UNIDO", "EURONEXT": "ZONA DO EURO",
+}
+PAIS_POR_MOEDA = {"BRL": "BRASIL", "USD": "ESTADOS UNIDOS", "EUR": "ZONA DO EURO",
+                  "GBP": "REINO UNIDO"}
+PAIS_EXTERIOR = "EXTERIOR"
+
+IRR_CHUTE_INICIAL = 0.10
+TOLERANCIA_COMMITMENT = 0.01
+TOLERANCIA_VALOR_FINANCEIRO = 0.01
+IRR_MAX_ITERACOES = 100
+IRR_TOLERANCIA = 1e-7
+DIAS_UTEIS_ANO = 252
+
+BACKUP_DIR = DATA_DIR / "backups"
+BACKUP_RETENCAO_DIAS = 30
+OUTBOX_DIR = DATA_DIR / "outbox"
+FUSO = "America/Sao_Paulo"
+COLETA_HORA, COLETA_MINUTO = 19, 30
+BACKUP_HORA, BACKUP_MINUTO = 22, 30
+
+SMTP_HOST = os.getenv("CARTEIRA_SMTP_HOST", "")
+SMTP_PORTA = int(os.getenv("CARTEIRA_SMTP_PORTA", "587"))
+SMTP_USUARIO = os.getenv("CARTEIRA_SMTP_USUARIO", "")
+SMTP_SENHA = os.getenv("CARTEIRA_SMTP_SENHA", "")
+SMTP_REMETENTE = os.getenv("CARTEIRA_SMTP_REMETENTE", "nao-responda@carteiras.local")
+URL_APLICACAO = os.getenv("CARTEIRA_URL", "http://localhost:8501")
+
+HTTP_TIMEOUT = 10
+CACHE_PRECO_HORAS = 12
+
+DATA_REFERENCIA_DEMO = date(2026, 9, 22)
+
+
+def hoje() -> date:
+    texto = os.getenv("CARTEIRA_DATA_REFERENCIA", "").strip()
+    return date.fromisoformat(texto) if texto else date.today()
+
+
+for _d in (DATA_DIR, UPLOAD_DIR, EXPORT_DIR, TEMPLATE_DIR, BACKUP_DIR, OUTBOX_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
