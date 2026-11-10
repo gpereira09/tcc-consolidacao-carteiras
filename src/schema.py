@@ -119,7 +119,7 @@ TEMPLATE_LIQUIDOS = Template(
         "Datas no formato dd/mm/aaaa. Números com vírgula ou ponto decimal são aceitos.",
         "Use os valores das listas suspensas em 'classe', 'mercado' e 'moeda'.",
         "Regra de coerência: valor_financeiro deve bater com quantidade x preco_medio (tolerância de 1%).",
-        "A moeda deve ser coerente com o mercado (B3=BRL, NYSE/NASDAQ=USD, LSE/EURONEXT=EUR).",
+        "A moeda deve ser coerente com o mercado (B3=BRL, NYSE/NASDAQ=USD, LSE=GBP, EURONEXT=EUR).",
         "Não informe datas futuras em data_aquisicao.",
         "Se o mesmo ticker aparecer duas vezes, as posições são consolidadas por preço médio ponderado.",
     ],
