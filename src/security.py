@@ -205,6 +205,23 @@ def mascarar_cpf(cpf: str | None) -> str | None:
     return f"***.***.***-{digitos[-2:]}" if len(digitos) == 11 else None
 
 
+def normalizar_cpf(cpf: str | None) -> str | None:
+    """
+    CPF só com dígitos, conferindo os dois dígitos verificadores.
+    Vazio devolve None (o CPF é opcional). ValueError se for inválido.
+    """
+    digitos = re.sub(r"\D", "", cpf or "")
+    if not digitos:
+        return None
+    if len(digitos) != 11 or digitos == digitos[0] * 11:
+        raise ValueError("CPF inválido.")
+    for tamanho in (9, 10):
+        soma = sum(int(d) * peso for d, peso in zip(digitos, range(tamanho + 1, 1, -1)))
+        if int(digitos[tamanho]) != (soma * 10 % 11) % 10:
+            raise ValueError("CPF inválido.")
+    return digitos
+
+
 def gerar_segredo_totp() -> str:
     return base64.b32encode(os.urandom(20)).decode().rstrip("=")
 
