@@ -1,0 +1,6 @@
+---
+description: Instruções do projeto para agentes
+alwaysApply: true
+---
+
+Leia e siga [`AGENTS.md`](../../AGENTS.md), na raiz do repositório. Ele define a fonte de verdade (a monografia em `TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`), os guardrails em `docs/guardioes/`, a arquitetura e as convenções.
