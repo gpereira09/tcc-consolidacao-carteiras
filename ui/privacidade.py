@@ -1,8 +1,9 @@
-"""Privacidade, direitos do titular e segurança da conta (RF-027, RF-028; UC-17, UC-18)."""
+"""Privacidade, direitos do titular e segurança da conta (RF-027, RF-028; UC-17, UC-18; correção, seção 2.6.2)."""
 from __future__ import annotations
 
 import streamlit as st
 
+import config
 from src import lgpd, security
 from ui import comum, estilo
 
@@ -40,9 +41,12 @@ def render() -> None:
         st.markdown(comum.ficha("Consentimento", consentimento), unsafe_allow_html=True)
 
     st.divider()
-    aba_export, aba_excluir, aba_seg = st.tabs(
-        ["Exportar meus dados", "Excluir minha conta", "Segurança da conta"])
+    aba_corrigir, aba_export, aba_excluir, aba_seg = st.tabs(
+        ["Corrigir meus dados", "Exportar meus dados", "Excluir minha conta",
+         "Segurança da conta"])
 
+    with aba_corrigir:
+        _correcao(sessao, usuario, cliente)
     with aba_export:
         _exportacao(sessao, usuario)
     with aba_excluir:
@@ -56,6 +60,66 @@ def _campo_2fa(usuario) -> str | None:
     if not usuario.totp_ativo:
         return None
     return st.text_input("Código do autenticador (2FA)", max_chars=6)
+
+
+ROTULOS_CAMPOS = {"nome": "nome", "email": "e-mail", "cpf": "CPF",
+                  "moeda_base": "moeda base", "perfil_risco": "perfil de risco"}
+
+
+def _correcao(sessao, usuario, cliente) -> None:
+    """Direito de correção (LGPD, art. 18, III; seção 2.6.2)."""
+    mensagem = st.session_state.pop("correcao_ok", None)
+    if mensagem:
+        st.success(mensagem)
+
+    st.markdown(
+        "Corrija dados cadastrais incompletos, inexatos ou desatualizados. Os valores "
+        "anteriores também deixam de constar na trilha de auditoria, que registra só "
+        "quais campos mudaram."
+    )
+    cpf_atual = security.decifrar(cliente.cpf_cifrado) if cliente else None
+
+    with st.form("corrigir_dados"):
+        email = st.text_input("E-mail de acesso", value=usuario.email)
+        nome = cpf = moeda = risco = None
+        remover_cpf = False
+        if cliente is not None:
+            nome = st.text_input("Nome", value=cliente.nome)
+            cpf = st.text_input(
+                "CPF", placeholder=security.mascarar_cpf(cpf_atual) or "não informado",
+                help="Deixe em branco para manter o CPF atual. Ele é guardado cifrado.",
+            )
+            remover_cpf = bool(cpf_atual) and st.checkbox("Remover o CPF do cadastro")
+            c1, c2 = st.columns(2)
+            with c1:
+                moeda = st.selectbox("Moeda base", config.MOEDAS,
+                                     index=config.MOEDAS.index(cliente.moeda_base))
+            with c2:
+                risco = st.selectbox("Perfil de risco", config.PERFIS_RISCO,
+                                     index=config.PERFIS_RISCO.index(cliente.perfil_risco))
+        senha = st.text_input("Confirme sua senha", type="password")
+        codigo = _campo_2fa(usuario)
+        enviar = st.form_submit_button("Salvar correções", type="primary")
+
+    if not enviar:
+        return
+    if cliente is not None:
+        cpf = "" if remover_cpf else (cpf.strip() or None)
+    try:
+        alterados = lgpd.corrigir_cadastro(
+            sessao, usuario.id, senha=senha, codigo_2fa=codigo, nome=nome, email=email,
+            cpf=cpf, moeda_base=moeda, perfil_risco=risco,
+        )
+    except (ValueError, security.ErroLimiteTaxa) as erro:
+        st.error(str(erro))
+        return
+    if not alterados:
+        st.info("Nenhum dado foi alterado.")
+        return
+    st.session_state.correcao_ok = (
+        "Dados corrigidos: " + ", ".join(ROTULOS_CAMPOS[c] for c in alterados) + "."
+    )
+    st.rerun()
 
 
 def _exportacao(sessao, usuario) -> None:
