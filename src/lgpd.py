@@ -1,6 +1,9 @@
 """
 Atendimento aos direitos do titular — LGPD (RF-027, RF-028, RN-014, RN-015).
 
+Correção (art. 18, III; seção 2.6.2): o titular corrige nome, e-mail, CPF,
+moeda base e perfil de risco, mediante reautenticação.
+
 Portabilidade (art. 18, V): exporta todos os dados do titular em JSON ou CSV
 (pacote .zip). O arquivo recebe um token de uso único (RN-014): ao ser
 resgatado, o conteúdo é entregue e o arquivo é apagado do servidor. Arquivos
@@ -21,6 +24,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import secrets
 import zipfile
 from dataclasses import dataclass
@@ -338,12 +342,111 @@ def _anonimizar_auditoria(sessao: Session, identificadores: set[str],
         update(AuditLog).where(AuditLog.entidade_id.in_(identificadores))
         .values(entidade_id=ANONIMO)
     )
-    for texto in (t for t in textos | identificadores if t and len(t) >= 3):
+    _substituir_na_auditoria(sessao, textos | identificadores, ANONIMO)
+    return alterados
+
+
+def _substituir_na_auditoria(sessao: Session, textos: set[str | None], marcador: str) -> None:
+    """Troca cada ocorrência dos textos nos dados registrados da auditoria pelo marcador."""
+    for texto in (t for t in textos if t and len(t) >= 3):
         for coluna in (AuditLog.dados_novos, AuditLog.dados_anteriores):
             sessao.execute(
                 update(AuditLog).where(coluna.contains(texto))
-                .values({coluna: func.replace(coluna, texto, ANONIMO)})
+                .values({coluna: func.replace(coluna, texto, marcador)})
             )
+
+
+CORRIGIDO = "CORRIGIDO_LGPD"
+
+
+def corrigir_cadastro(
+    sessao: Session,
+    usuario_id: str,
+    *,
+    senha: str,
+    codigo_2fa: str | None = None,
+    nome: str | None = None,
+    email: str | None = None,
+    cpf: str | None = None,
+    moeda_base: str | None = None,
+    perfil_risco: str | None = None,
+) -> list[str]:
+    """
+    Direito de correção (LGPD, art. 18, III; seção 2.6.2): o titular corrige
+    os próprios dados cadastrais. Devolve os campos alterados.
+
+    Parâmetro None mantém o valor atual. Em `cpf`, texto vazio remove o CPF,
+    que é opcional. Nome, CPF, moeda base e perfil de risco só existem para
+    contas com cadastro de cliente; o e-mail vale para qualquer conta.
+
+    Exige reautenticação, como as demais operações sobre dados do titular
+    (RN-014), com o mesmo limite de tentativas do login (RNF-011).
+
+    Os valores anteriores de nome, e-mail e CPF saem também da trilha de
+    auditoria, trocados por CORRIGIDO_LGPD. Sem isso, um dado pessoal
+    desatualizado continuaria guardado e escaparia da anonimização da
+    RN-015, que só procura os valores vigentes. O registro CORRIGIR_DADOS
+    guarda apenas os nomes dos campos alterados, nunca os valores.
+    """
+    usuario = sessao.get(Usuario, usuario_id)
+    if usuario is None:
+        raise ValueError("Usuário inexistente.")
+    security.aplicar_limite(f"reauth:{usuario.id}")
+    if not security.reautenticar(usuario, senha, codigo_2fa):
+        raise ValueError("Reautenticação falhou: senha"
+                         + (" ou código 2FA" if usuario.totp_ativo else "") + " incorreto(s).")
+
+    cliente = sessao.scalar(select(Cliente).where(Cliente.usuario_id == usuario_id))
+    if cliente is None and any(v is not None for v in (nome, cpf, moeda_base, perfil_risco)):
+        raise ValueError("Esta conta não tem cadastro de cliente: só o e-mail pode ser corrigido.")
+
+    alterados: list[str] = []
+    antigos: set[str | None] = set()
+
+    if email is not None and email.strip().lower() != usuario.email:
+        novo_email = security.validar_email_novo(sessao, email)
+        antigos.add(usuario.email)
+        usuario.email = novo_email
+        alterados.append("email")
+
+    if cliente is not None:
+        if nome is not None and nome.strip() != cliente.nome:
+            if not nome.strip():
+                raise ValueError("O nome não pode ficar vazio.")
+            antigos.add(cliente.nome)
+            cliente.nome = nome.strip()
+            alterados.append("nome")
+        if cpf is not None:
+            atual = security.decifrar(cliente.cpf_cifrado)
+            novo_cpf = security.normalizar_cpf(cpf)
+            if novo_cpf != (re.sub(r"\D", "", atual or "") or None):
+                antigos.add(atual)
+                cliente.cpf_cifrado = security.cifrar(novo_cpf)
+                alterados.append("cpf")
+        if moeda_base is not None and moeda_base != cliente.moeda_base:
+            if moeda_base not in config.MOEDAS:
+                raise ValueError(f"Moeda base inválida. Use: {', '.join(config.MOEDAS)}.")
+            cliente.moeda_base = moeda_base
+            alterados.append("moeda_base")
+        if perfil_risco is not None and perfil_risco != cliente.perfil_risco:
+            if perfil_risco not in config.PERFIS_RISCO:
+                raise ValueError(f"Perfil de risco inválido. Use: {', '.join(config.PERFIS_RISCO)}.")
+            cliente.perfil_risco = perfil_risco
+            alterados.append("perfil_risco")
+
+    if not alterados:
+        sessao.rollback()
+        return []
+
+    sessao.flush()
+    _substituir_na_auditoria(sessao, antigos, CORRIGIDO)
+    audit.registrar(
+        sessao, usuario_id=usuario.id, acao=audit.CORRIGIR_DADOS,
+        entidade="CLIENTE" if cliente is not None else "USUARIO",
+        entidade_id=cliente.id if cliente is not None else usuario.id,
+        dados_novos={"campos": alterados},
+    )
+    sessao.commit()
     return alterados
 
 
