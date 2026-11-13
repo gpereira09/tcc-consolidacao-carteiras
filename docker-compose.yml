@@ -1,0 +1,17 @@
+services:
+  carteira:
+    build: .
+    image: carteira-tcc
+    ports:
+      - "8501:8501"
+    environment:
+      CARTEIRA_HTTPS: "1"
+      CARTEIRA_SEED_DEMO: "1"
+      CARTEIRA_JWT_SECRET: ${CARTEIRA_JWT_SECRET:-troque-este-segredo}
+    volumes:
+      - carteira-dados:/app/data
+      - ./certs:/app/certs
+    restart: unless-stopped
+
+volumes:
+  carteira-dados:
