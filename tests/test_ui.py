@@ -113,6 +113,19 @@ class TestFluxosEtapa2:
         at = AppTest.from_file(APP, default_timeout=60).run()
         assert [t.label for t in at.tabs][:3] == ["Entrar", "Criar conta", "Esqueci minha senha"]
 
+    def test_recuperacao_sem_smtp_com_dados_fora_do_projeto(self, sessao):
+        """Versão instalada: a pasta de dados fica fora do código (CARTEIRA_DATA_DIR)."""
+        criar_usuario(sessao, "esqueci@exemplo.com", "Esqueci")
+        assert not config.OUTBOX_DIR.is_relative_to(config.BASE_DIR)
+
+        at = AppTest.from_file(APP, default_timeout=60).run()
+        next(t for t in at.text_input if t.label == "E-mail cadastrado").set_value(
+            "esqueci@exemplo.com")
+        next(b for b in at.button if b.label == "Enviar código").click().run()
+        assert not at.exception, f"exceção na recuperação de senha: {at.exception}"
+        assert at.success
+        assert any(str(config.OUTBOX_DIR) in c.value for c in at.caption)
+
     def test_login_pede_codigo_2fa(self, sessao):
         usuario = criar_usuario(sessao, "dois@exemplo.com", "Dois")
         seg = security.gerar_segredo_totp()
