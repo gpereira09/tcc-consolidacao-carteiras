@@ -103,8 +103,10 @@ def _recuperar_senha() -> None:
         else:
             st.success("Se o e-mail estiver cadastrado, o código foi enviado.")
             if not config.SMTP_HOST:
-                st.caption(f"Modo local sem SMTP: a mensagem é gravada em "
-                           f"`{config.OUTBOX_DIR.relative_to(config.BASE_DIR)}/`.")
+                caixa = config.OUTBOX_DIR
+                if caixa.is_relative_to(config.BASE_DIR):
+                    caixa = caixa.relative_to(config.BASE_DIR)
+                st.caption(f"Modo local sem SMTP: a mensagem é gravada em `{caixa}`.")
 
     st.markdown("#### Já tenho o código")
     _formulario_nova_senha("")
