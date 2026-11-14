@@ -43,3 +43,7 @@ Thumbs.db
 # Templates XLSX: gerados sob demanda (seed_demo e tela de importação)
 data/templates/
 
+# Instalador Windows: artefatos de build (gerados por distribuicao/construir.ps1)
+distribuicao/build/
+distribuicao/cache/
+distribuicao/saida/
