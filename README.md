@@ -35,6 +35,25 @@ Também é possível usar `./run.sh` (Linux/macOS) ou `run.bat` (Windows). Esses
 | Tarefas diárias via cron | `python scripts/tarefas_diarias.py [coleta\|backup]` |
 | Testes | `pip install -r requirements-dev.txt` e depois `python -m pytest -q` |
 
+### Instalador para Windows (usuário final)
+
+Para quem só quer usar o sistema, sem Python, VS Code nem terminal: `Instalar-ConsolidacaoCarteiras-<versão>.exe`.
+
+- Instala por usuário, **sem pedir administrador**, em `%LOCALAPPDATA%\Programs\ConsolidacaoCarteiras`, com Python 3.14 embutido.
+- Os dados (banco, chaves, backups, registros) ficam à parte, em `%LOCALAPPDATA%\ConsolidacaoCarteiras`. Atualizar o programa não toca neles, e a desinstalação pergunta se devem ser apagados (o padrão é mantê-los).
+- Opções do assistente: carregar a demonstração (só se ainda não houver banco), **iniciar com o Windows em segundo plano** (coleta às 19h30 e backup às 22h30 sem abrir nada) e atalho na área de trabalho.
+- O atalho abre o navegador em `http://127.0.0.1:<porta>`; o servidor escuta só na própria máquina. Um ícone na bandeja oferece *Abrir*, *Pasta de dados* e *Encerrar*.
+- Cada instalação gera o seu próprio segredo JWT; a chave de desenvolvimento de `config.py` não é usada.
+
+Para gerar o instalador (máquina de build com Python 3.14 e Inno Setup 6):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File distribuicao\construir.ps1            # → distribuicao\saida\
+powershell -ExecutionPolicy Bypass -File distribuicao\construir.ps1 -SemInstalador   # só a pasta portátil
+```
+
+As versões das bibliotecas embarcadas ficam travadas em `distribuicao/requisitos-instalador.txt`, validadas com a suíte completa. O executável não tem assinatura digital, então o Windows SmartScreen pode pedir "Mais informações → Executar assim mesmo".
+
 Contas da carga demonstrativa (senha `Senha123` para todas):
 
 | Perfil | E-mail | O que vê (RN-013) |
@@ -110,6 +129,7 @@ carteira/
 ├── config.py                 parâmetros, domínios, caminhos e data de referência
 ├── requirements.txt          dependências de execução (requirements-dev.txt: testes; requirements-mcp.txt: servidor MCP)
 ├── Dockerfile, docker-compose.yml, docker-entrypoint.sh, run.sh, run.bat
+├── distribuicao/            instalador para Windows: iniciador, build (construir.ps1), Inno Setup, ícone
 ├── src/
 │   ├── models.py             17 tabelas (MER + importacao_log + token_seguranca)
 │   ├── db.py                 SQLite (WAL, FKs ativas), sessão, migrações leves
@@ -131,7 +151,7 @@ carteira/
 │   └── market/               cambio.py · precos.py · benchmarks.py · seed_sintetico.py
 ├── ui/                       uma tela por módulo, estilo e utilitários
 ├── scripts/                  seed_demo · gerar_ddl · gerar_certificado · tarefas_diarias · capturar_telas
-├── tests/                    221 testes (pytest), inclusive telas via AppTest
+├── tests/                    239 testes (pytest), inclusive telas via AppTest
 └── docs/                     ARQUITETURA.md · apendice_a_ddl.sql · telas/
 ```
 
