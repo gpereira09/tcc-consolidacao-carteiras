@@ -108,6 +108,19 @@ class TestTelasAutenticadas:
         assert at.info
 
 
+    def test_carteira_sem_acesso_nao_e_exibida(self, app_populado, sessao):
+        """RN-013: quem perdeu o acesso não continua vendo a carteira escolhida antes."""
+        carteira_alheia = app_populado.session_state.carteira_id
+        colaborador = criar_usuario(sessao, "sem.vinculo@exemplo.com", "Sem Vínculo",
+                                    perfil="COLABORADOR")
+        at = _app_logado(colaborador)
+        at.session_state.carteira_id = carteira_alheia
+        at.run()
+        assert not at.exception
+        assert "Patrimônio consolidado" not in " ".join(m.value for m in at.markdown)
+        assert "carteira_id" not in at.session_state
+
+
 class TestFluxosEtapa2:
     def test_login_tem_aba_de_recuperacao(self):
         at = AppTest.from_file(APP, default_timeout=60).run()

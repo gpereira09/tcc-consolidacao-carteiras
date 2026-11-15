@@ -104,8 +104,21 @@ def falha(erro: Exception) -> None:
 
 
 def carteira_selecionada() -> Carteira | None:
+    """
+    Carteira escolhida na barra lateral, conferida de novo a cada uso (RN-013).
+
+    A escolha fica guardada na sessão. Se o usuário perder o acesso enquanto
+    está conectado (vínculo removido ou perfil alterado), a carteira deixa de
+    ser devolvida e a escolha é descartada.
+    """
     cid = st.session_state.get("carteira_id")
-    return sessao().get(Carteira, cid) if cid else None
+    usuario = usuario_atual()
+    if not cid or usuario is None:
+        return None
+    if not security.pode_acessar_carteira(sessao(), usuario, cid):
+        st.session_state.pop("carteira_id", None)
+        return None
+    return sessao().get(Carteira, cid)
 
 
 def exigir_carteira() -> Carteira:
