@@ -936,7 +936,8 @@ O Quadro 17 apresenta a stack escolhida.
 | Coleta — Brasil | Requests + BeautifulSoup | Scraping estruturado de CVM e fontes brasileiras |
 | Coleta — Câmbio | API BCB | Taxas de câmbio oficiais do Banco Central |
 | Agendamento | APScheduler | Coleta automática de preços ao fim do pregão (ativos listados) |
-| Containerização | Docker (opcional) | Padronização do ambiente para deploy reproduzível |
+| Distribuição | Instalador para Windows (Inno Setup, com Python embutido) | Forma principal de entrega: instalação por usuário, sem privilégios de administrador e sem exigir Python na máquina |
+| Containerização | Docker (opcional) | Alternativa de execução em ambiente padronizado e reproduzível |
 | Autenticação | JWT (PyJWT) | Tokens seguros para sessões de usuário |
 | Criptografia | cryptography (Fernet) | Criptografia AES-256 de campos sensíveis em repouso |
 
@@ -971,7 +972,9 @@ A arquitetura do sistema é organizada em três grandes camadas lógicas, alinha
 - **Camada de Persistência:** repositórios SQLAlchemy ORM sobre arquivo SQLite local (`carteira.db`) em volume persistente;
 - **Camada de Integração:** clients HTTP para APIs externas (Yahoo Finance e PTAX do BCB), com cache local e manutenção do último valor conhecido em caso de falha.
 
-A aplicação pode ser empacotada via Docker para garantir portabilidade, embora o uso de SQLite permita também execução nativa sem contêineres. Toda a aplicação roda em ambiente single-host, com o arquivo do banco de dados e os uploads de templates armazenados em volumes persistentes.
+A forma principal de entrega é um instalador para Windows, que instala a aplicação por usuário, sem privilégios de administrador, com o interpretador Python e as bibliotecas já embutidos. O atalho criado pelo instalador inicia um servidor local, acessível apenas pela própria máquina (127.0.0.1), e abre o sistema no navegador. O banco de dados, as chaves e os backups ficam em uma pasta de dados do usuário, separada da pasta do programa, de modo que atualizar a aplicação não os altera.
+
+Como alternativas, a aplicação pode ser executada via Docker ou diretamente com Python, o que o uso de SQLite permite sem infraestrutura adicional. Em qualquer dessas formas, toda a aplicação roda em ambiente single-host, com o arquivo do banco de dados e os uploads de templates em armazenamento persistente.
 
 Os diagramas de componentes e de implantação que ilustram esta arquitetura são apresentados no capítulo 6 (Figuras 13 e 14).
 
@@ -1056,7 +1059,7 @@ Os requisitos não funcionais (RNF) descrevem características de qualidade do s
 | RNF-006 | Confiabilidade (disponibilidade) | A coleta automática de preços deve executar diariamente entre 19h e 22h (horário de Brasília). |
 | RNF-007 | Confiabilidade (recuperabilidade) | O sistema deve reter histórico de preços por no mínimo 5 anos. |
 | RNF-008 | Confiabilidade (tolerância a falhas) | Backups automáticos do arquivo SQLite devem ser realizados diariamente. |
-| RNF-009 | Portabilidade | O sistema deve ser implantável via Docker e também em modo standalone com Python. |
+| RNF-009 | Portabilidade | O sistema deve ser distribuído como instalador para Windows, sem exigir Python previamente instalado, e deve ser implantável também via Docker e em modo standalone com Python. |
 | RNF-010 | Manutenibilidade (analisabilidade) | Endpoints e módulos internos devem ser documentados (docstrings + arquitetura). |
 | RNF-011 | Confiabilidade (disponibilidade) | O sistema deve aplicar rate limiting (60 req/min por usuário) para prevenir abuso. |
 | RNF-012 | Conformidade | O sistema deve atender aos requisitos da Lei nº 13.709/2018 (LGPD). |
@@ -1582,7 +1585,7 @@ O diagrama de componentes apresenta a organização interna do software em pacot
 
 ## 6.7 DIAGRAMA DE IMPLANTAÇÃO
 
-O diagrama de implantação descreve o ambiente físico de execução do sistema. O modelo adotado é single-host: toda a aplicação roda em um único servidor (que pode ser uma VPS, um servidor on-premises ou mesmo a máquina do próprio usuário), com o banco SQLite em volume persistente. As únicas dependências externas são as APIs de mercado utilizadas para enriquecimento de preço de tela. A Figura 14 ilustra essa topologia.
+O diagrama de implantação descreve o ambiente físico de execução do sistema. O modelo adotado é single-host: toda a aplicação roda em um único servidor (que pode ser uma VPS, um servidor on-premises ou mesmo a máquina do próprio usuário), com o banco SQLite em volume persistente. As únicas dependências externas são as APIs de mercado utilizadas para enriquecimento de preço de tela. Na entrega desta versão, feita pelo instalador para Windows (seção 5.2), esse host é a máquina do próprio usuário, e o servidor atende somente a conexões locais. A Figura 14 ilustra essa topologia.
 
 **Figura 14 — Diagrama de Implantação**
 
@@ -1880,7 +1883,7 @@ O estudo das plataformas concorrentes evidenciou três lacunas relevantes no mer
 
 Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta: (i) o uso de templates padronizados em XLSX como mecanismo principal de ingestão, oferecendo ao cliente um caminho estruturado e auditável para informar suas posições; (ii) o uso de APIs externas (Yahoo Finance, CVM, BCB e Tesouro Direto) restrito ao enriquecimento de preços de mercado para ativos com ticker listado, mantendo a soberania do cliente sobre seus dados primários; e (iii) a adoção do SQLite como banco de dados local em arquivo, que simplifica o deploy e a manutenção e atende aos requisitos transacionais da versão monousuário.
 
-A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit, SQLite e Docker (opcional) (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
+A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit e SQLite, distribuída por instalador para Windows e, opcionalmente, por Docker (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
 
 A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementadas pelas métricas específicas de PE/VC (MOIC, DPI e TVPI), busca aderência às práticas consolidadas da indústria financeira. As decisões de segurança e privacidade — JWT, RBAC, AES-256 via Fernet e adequação à LGPD — orientam o tratamento dos dados financeiros dos usuários em conformidade com a legislação.
 
