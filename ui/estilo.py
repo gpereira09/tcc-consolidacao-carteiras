@@ -165,10 +165,6 @@ section[data-testid="stSidebar"] label[data-selected="true"] p {{
     color: {GRAFITE}; font-size: 0.82rem;
     border-top: 1px solid {LINHA}; padding-top: 0.6rem; margin-top: 1.4rem;
 }}
-.selo-sintetico {{
-    background: #FBF4E2; border: 1px solid #E5D3A5; color: #6B5518;
-    padding: 0.45rem 0.75rem; font-size: 0.8rem; margin-bottom: 0.9rem;
-}}
 div[data-testid="stDataFrame"] {{ border: 1px solid {LINHA}; }}
 .stButton button {{ border-radius: 2px; font-weight: 500; }}
 </style>

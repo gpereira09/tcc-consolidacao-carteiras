@@ -101,13 +101,6 @@ class TestTelasAutenticadas:
         markdown = " ".join(m.value for m in at.markdown)
         assert "Patrimônio consolidado" in markdown
 
-    def test_relatorios_avisam_dados_simulados(self, app_populado):
-        """Séries simuladas são sinalizadas também na tela de relatórios."""
-        at = app_populado.run()
-        _navegacao(at)[0].set_value("Relatórios").run()
-        assert not at.exception
-        assert "Ambiente de demonstração" in " ".join(m.value for m in at.markdown)
-
     def test_sem_carteira_nao_quebra(self, sessao):
         """Conta recém-criada, sem posições: a tela orienta em vez de falhar."""
         at = _app_logado(criar_usuario(sessao, "vazio@exemplo.com", "Vazio")).run()

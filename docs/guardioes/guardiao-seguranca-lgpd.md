@@ -33,7 +33,7 @@ Este guardião é uma revisão: só leia e analise, sem editar arquivos durante 
 - A trilha de auditoria cobre login, falha de login, criação de conta, importação, eventos de PE, alterações de usuário, exportação e exclusão. Ela não registra valores sensíveis (senha, CPF em claro, tokens).
 
 ## Dados de demonstração (capítulo 10)
-Todo dado exibido em demonstração é sintético. Séries simuladas usam a fonte `SIMULADO`, e a UI avisa quando há dados simulados. Nenhum dado real de investidor entra no repositório: verifique o `.gitignore` de `data/`.
+Todo dado exibido em demonstração é sintético. Séries simuladas usam a fonte `SIMULADO`. Nenhum dado real de investidor entra no repositório: verifique o `.gitignore` de `data/`.
 
 ## Formato da resposta
 1. Achados ordenados por severidade (CRÍTICO, ALTO, MÉDIO, BAIXO). Cada um com `arquivo:linha`, a regra violada (RN, RNF ou seção) e um cenário concreto de exploração ou de não conformidade.

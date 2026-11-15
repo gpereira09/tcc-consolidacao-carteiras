@@ -142,8 +142,7 @@ def _pizza(dados: dict[str, float], titulo: str, largura: float = 8.2 * cm) -> D
 
 
 def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
-          titular: str | None = None, simulado: bool = False) -> bytes:
-    """`simulado=True` acrescenta o aviso de que as séries de mercado são sintéticas."""
+          titular: str | None = None) -> bytes:
     est = _estilos()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -159,10 +158,6 @@ def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
     h.append(Paragraph(
         f"{identificacao}{carteira_nome} · moeda base {base} · referência "
         f"{snap.data:%d/%m/%Y} · emitido em {datetime.now():%d/%m/%Y %H:%M}", est["sub"]))
-    if simulado:
-        h.append(Paragraph(
-            "<b>Ambiente de demonstração:</b> cotações, câmbio e benchmarks desta base são "
-            "gerados por simulação e não representam valores reais de mercado.", est["nota"]))
     for alerta in snap.alertas + (rent.alertas if rent is not None else []):
         h.append(Paragraph(f"<b>Atenção:</b> {alerta}", est["nota"]))
 

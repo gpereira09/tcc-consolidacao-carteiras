@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import config
-from src.models import AssetMapping, Ativo, BenchmarkValor, Posicao, PrecoHistorico, TaxaCambio
+from src.models import AssetMapping, Ativo, Posicao, PrecoHistorico
 
 FONTE_YAHOO = "YAHOO"
 
@@ -58,20 +58,6 @@ def ticker_externo(sessao: Session, ativo: Ativo) -> str:
     if mapeado:
         return mapeado.ticker_source
     return f"{ativo.ticker_canonico}{SUFIXO_YAHOO.get(ativo.mercado or '', '')}"
-
-
-def ha_dados_simulados(sessao: Session) -> bool:
-    """
-    True se a base contém séries do gerador sintético (fonte SIMULADO) — preços,
-    câmbio ou benchmarks. Os benchmarks não têm coletor real nesta versão, então
-    qualquer valor de benchmark é sintético.
-    """
-    consultas = (
-        select(PrecoHistorico.id).where(PrecoHistorico.fonte == "SIMULADO"),
-        select(TaxaCambio.id).where(TaxaCambio.fonte == "SIMULADO"),
-        select(BenchmarkValor.id),
-    )
-    return any(sessao.scalar(c.limit(1)) is not None for c in consultas)
 
 
 def registrar_mapeamento(

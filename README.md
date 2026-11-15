@@ -80,7 +80,7 @@ Em 22/09/2026, com moeda base BRL:
 | TWR e MWR em 12 meses | 4,16% e 4,16% |
 | Volatilidade / drawdown máximo | 9,57% / −6,24% |
 
-> **Os dados de mercado da demonstração são sintéticos.** Câmbio, benchmarks e cotações são gerados por simulação determinística (`src/market/seed_sintetico.py`) e marcados com fonte `SIMULADO`. A interface e o PDF exibem esse aviso sempre que há dados simulados na base. Em produção, câmbio e cotações vêm dos coletores reais (PTAX do Banco Central e Yahoo Finance). Para benchmarks não há coletor real nesta versão.
+> **Os dados de mercado da demonstração são sintéticos.** Câmbio, benchmarks e cotações são gerados por simulação determinística (`src/market/seed_sintetico.py`) e gravados no banco com a fonte `SIMULADO`. Em produção, câmbio e cotações vêm dos coletores reais (PTAX do Banco Central e Yahoo Finance). Para benchmarks não há coletor real nesta versão.
 
 ---
 
