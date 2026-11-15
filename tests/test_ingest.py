@@ -240,6 +240,17 @@ class TestPersistencia:
             assert (len(f.eventos), f.paid_in_capital,
                     f.nav_atual) == antes[f.identificador_fundo]
 
+    def test_reimportacao_nao_reduz_commitment_abaixo_do_chamado(self, sessao, carteira, pevc):
+        """RN-004: a linha do fundo é rejeitada; as demais seguem válidas."""
+        importar_arquivo(sessao, carteira, pevc, "PEVC")
+        _escrever(pevc, "Fundos", 2, "commitment", 1_000_000.0)
+
+        prev = ingest.validar_arquivo(pevc, "PEVC", sessao, carteira.id)
+        erros = [o for o in prev.erros_semanticos if o.coluna == "commitment"]
+        assert len(erros) == 1 and "RN-004" in erros[0].mensagem
+        validos = {r["identificador_fundo"] for r in prev.validos["Fundos"]}
+        assert validos == {"FUND-PE-002", "FUND-RE-003"}
+
     def test_importa_imoveis(self, sessao, carteira, imoveis):
         log = importar_arquivo(sessao, carteira, imoveis, "IMOVEIS")
         assert log.linhas_importadas == 4

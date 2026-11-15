@@ -508,13 +508,22 @@ def _processar_pevc(wb, tpl: Template, prev: Preview,
             ja_registrados.update(
                 _chave_evento(ident, e.data_evento, e.tipo_evento, e.valor, e.status)
                 for e in fundo.eventos)
-            indice.setdefault(ident, {
+            pago[ident], comprometido[ident] = m.paid_in, m.paid_in + m.pendente
+            cadastrado = {
                 "identificador_fundo": ident,
                 "commitment": fundo.commitment,
                 "data_inicio": fundo.data_inicio,
                 "moeda": fundo.ativo.moeda,
-            })
-            pago[ident], comprometido[ident] = m.paid_in, m.paid_in + m.pendente
+            }
+            novo = indice.setdefault(ident, cadastrado)
+            if novo is not cadastrado:
+                try:
+                    pe.checar_novo_commitment(novo["commitment"], comprometido[ident], ident)
+                except ValueError as exc:
+                    prev.erros_semanticos.append(
+                        Ocorrencia(aba_f.nome, novo["_linha"], "commitment", str(exc)))
+                    fundos_validos.remove(novo)
+                    indice[ident] = cadastrado
 
     eventos_validos: list[dict] = []
 

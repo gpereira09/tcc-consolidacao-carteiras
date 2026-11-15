@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 import config
 from src import audit, security
 from src.calc import pe
+from src.calc.consolidacao import fundos_da_carteira
 from src.ingest import (
     pais_do_mercado,
     semantica_liquidos,
@@ -246,6 +247,11 @@ def cadastrar_fundo(
     _exigir_nao_futura(data_inicio, "A data de início não pode ser futura.")
     if data_fim_prevista and data_fim_prevista <= data_inicio:
         raise ErroOperacao("A data de encerramento deve ser posterior ao início.")
+
+    for existente in fundos_da_carteira(sessao, carteira_id):
+        if existente.identificador_fundo == identificador:
+            m = pe.calcular(existente, sessao)
+            pe.checar_novo_commitment(commitment, m.paid_in + m.pendente, identificador)
 
     fundo = upsert_fundo(
         sessao, carteira_id, identificador=identificador, nome=nome.strip(),

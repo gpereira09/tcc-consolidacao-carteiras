@@ -103,6 +103,24 @@ class TestFundosManuais:
         fundo = self._fundo(sessao, carteira)
         assert fundo.identificador_fundo == "FUND-X" and fundo.dry_powder == 1_000_000
 
+    def test_commitment_nao_fica_abaixo_do_ja_chamado(self, sessao, carteira):
+        """RN-004: recadastrar o fundo não pode deixar o dry powder negativo."""
+        fundo = self._fundo(sessao, carteira)
+        operacoes.registrar_evento_pe(sessao, usuario_de(sessao, carteira), fundo,
+                                      tipo="CAPITAL_CALL", data_evento=date(2022, 6, 1),
+                                      valor=400_000, status="PAGO")
+        with pytest.raises(ValueError, match="RN-004"):
+            operacoes.cadastrar_fundo(
+                sessao, usuario_de(sessao, carteira), carteira.id, identificador="fund-x",
+                nome="Fundo X", gestor="Gestora", sub_classe="PRIVATE_EQUITY", moeda="BRL",
+                commitment=300_000, data_inicio=date(2022, 1, 1))
+        assert fundo.commitment == 1_000_000
+        operacoes.cadastrar_fundo(
+            sessao, usuario_de(sessao, carteira), carteira.id, identificador="fund-x",
+            nome="Fundo X", gestor="Gestora", sub_classe="PRIVATE_EQUITY", moeda="BRL",
+            commitment=500_000, data_inicio=date(2022, 1, 1))
+        assert fundo.commitment == 500_000
+
     def test_distribuicao_exige_classificacao(self, sessao, carteira):
         fundo = self._fundo(sessao, carteira)
         u = usuario_de(sessao, carteira)
