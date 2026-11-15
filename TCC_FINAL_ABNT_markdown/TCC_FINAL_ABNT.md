@@ -114,7 +114,7 @@ O crescimento da base de investidores pessoa física no Brasil e a diversificaç
 - Figura 22 — BPMN: Geração e Exportação de Relatórios (UC-16)
 - Figura 23 — BPMN: Atendimento a Solicitação LGPD (UC-17, UC-18)
 - Figura 24 — BPMN: Administração de Usuários e Auditoria (UC-19, UC-20)
-- Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)
+- Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)
 - Figura 26 — Wireframe: Tela de Importação de Carteira
 - Figura 27 — Wireframe: Dashboard Principal
 - Figura 28 — Wireframe: Tela de Fundo PE/VC
@@ -1108,7 +1108,7 @@ A matriz de rastreabilidade (Quadro 22) permite verificar a cobertura entre requ
 | RF-003 | UC-03 | USUARIO | Tela de Recuperação de Senha |
 | RF-004 | UC-04 | POSICAO, TRANSACAO, ATIVO, ASSET_MAPPING, PRECO_HISTORICO | Tela de Importação |
 | RF-005 | UC-04 | POSICAO, ATIVO_ILIQUIDO, EVENTO_PE | Tela de Importação |
-| RF-006 | UC-04 | POSICAO, ATIVO_IMOVEL | Tela de Importação |
+| RF-006 | UC-04 | POSICAO, ATIVO_IMOVEL | Tela de Importação; Tela de Imóveis (consulta e reavaliação) |
 | RF-007 | UC-05 | POSICAO, ATIVO | Tela de Cadastro Manual |
 | RF-008 | UC-07 | PRECO_HISTORICO, ASSET_MAPPING | Serviço PrecoService (background) |
 | RF-009 | UC-06 | TRANSACAO | Tela de Transações |
@@ -1768,7 +1768,7 @@ Destinado a ações (Brasil e Offshore), ETFs, fundos de investimento e títulos
 | nome | Texto | Não | Nome do ativo (preenchido automaticamente se vazio). |
 | classe | Lista | Sim | ACAO, ETF, FUNDO, TESOURO_DIRETO, FII, RENDA_FIXA. |
 | mercado | Lista | Sim | B3, NYSE, NASDAQ, LSE, EURONEXT. |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 | quantidade | Numérico (8 dec) | Sim | Quantidade de cotas/ações da posição. |
 | preco_medio | Numérico (4 dec) | Sim | Preço médio de aquisição na moeda do ativo. |
 | valor_financeiro | Numérico (2 dec) | Sim | Valor financeiro total investido = quantidade × preço médio. |
@@ -1792,7 +1792,7 @@ Destinado a fundos de PE e VC. Diferentemente do template de líquidos, este mod
 | nome_fundo | Texto | Sim | Nome completo do fundo. |
 | gestor | Texto | Sim | Gestora responsável pelo fundo (ex.: Astella Investimentos). |
 | sub_classe | Lista | Sim | PRIVATE_EQUITY, VENTURE_CAPITAL, REAL_ESTATE. |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 | commitment | Numérico (2 dec) | Sim | Valor total comprometido pelo investidor. |
 | data_inicio | Data (dd/mm/aaaa) | Sim | Data do primeiro aporte (initial close). |
 | data_fim_prevista | Data (dd/mm/aaaa) | Não | Data prevista para encerramento do fundo (geralmente 10 anos). |
@@ -1801,6 +1801,8 @@ Destinado a fundos de PE e VC. Diferentemente do template de líquidos, este mod
 | valor_evento | Numérico (2 dec) | Sim* | Aba Eventos: valor monetário do evento. |
 | status | Lista | Sim* | Aba Eventos: PENDENTE, PAGO, RECEBIDO, CANCELADO. |
 | nav_unidade | Numérico (4 dec) | Não* | Aba Eventos: NAV por cota (apenas para NAV_UPDATE). |
+| observacao | Texto | Não* | Aba Eventos: observação livre. |
+| subtipo | Lista | Não* | Aba Eventos: RETORNO_CAPITAL, GANHO_CAPITAL, RENDIMENTO (apenas para DISTRIBUICAO). |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1818,13 +1820,14 @@ Destinado a imóveis diretos (residenciais ou comerciais). Os FIIs (Fundos Imobi
 | nome_descritivo | Texto | Sim | Descrição do imóvel (ex.: Apartamento Centro - Curitiba). |
 | tipo_imovel | Lista | Sim | RESIDENCIAL, COMERCIAL, INDUSTRIAL, RURAL. |
 | endereco | Texto | Não | Endereço completo (uso interno do cliente). |
+| area_m2 | Numérico (2 dec) | Não | Área privativa do imóvel, em m². |
 | data_aquisicao | Data (dd/mm/aaaa) | Sim | Data da escritura/aquisição. |
 | valor_aquisicao | Numérico (2 dec) | Sim | Valor pago na aquisição. |
 | valor_mercado_atual | Numérico (2 dec) | Sim | Estimativa do valor de mercado atual. |
 | data_avaliacao | Data (dd/mm/aaaa) | Sim | Data da última avaliação do valor de mercado. |
 | renda_mensal | Numérico (2 dec) | Não | Renda mensal de aluguel (se aplicável). |
 | despesas_mensais | Numérico (2 dec) | Não | Despesas mensais (IPTU, condomínio, manutenção). |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1836,13 +1839,13 @@ Este capítulo apresenta os wireframes (protótipos de baixa fidelidade) das pri
 
 > **Nota:** todos os dados financeiros, nomes de ativos, tickers e valores exibidos nos wireframes e nos quadros de exemplo deste trabalho são meramente ilustrativos e gerados de forma sintética (fictícia), sem relação com carteiras reais de investidores ou com bases de dados de instituições financeiras.
 
-## 10.1 TELA DE LOGIN E PRIVACIDADE LGPD
+## 10.1 TELAS DE ACESSO E CONSENTIMENTO LGPD
 
-A Figura 25 apresenta, à esquerda, a tela de login (acesso público) e, à direita, a tela de privacidade do usuário autenticado, onde o titular pode exercer todos os seus direitos previstos pela LGPD: consentimento, acesso, portabilidade, correção, limitação de tratamento e esquecimento.
+A Figura 25 apresenta as três abas da tela de acesso público. À esquerda, a tela de login (UC-02); ao centro, a criação de conta (UC-01), em que o usuário lê o termo de consentimento e o aceita de forma explícita antes do cadastro, conforme a LGPD; à direita, a recuperação de senha (UC-03), com envio de código de redefinição ao e-mail cadastrado. Os direitos do titular sobre os dados já armazenados, como portabilidade (RF-027) e eliminação (RF-028), são exercidos na tela de privacidade do usuário autenticado.
 
-**Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)**
+**Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)**
 
-![Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)](imagens/figura-25.png)
+![Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)](imagens/figura-25.png)
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1858,7 +1861,7 @@ A Figura 26 apresenta a tela de importação organizada em três passos sequenci
 
 ## 10.3 DASHBOARD PRINCIPAL
 
-A Figura 27 apresenta o dashboard principal, organizado em quatro cards de KPI no topo (Patrimônio Total, Rentabilidade MWR, Volatilidade Anual e Maximum Drawdown), e três painéis de visualização: Evolução Patrimonial (gráfico de linha temporal), Performance vs Benchmarks (multi-linha) e Alocação por Classe + Alocação Geográfica (donut e barras horizontais).
+A Figura 27 apresenta o dashboard principal. No topo ficam o seletor de período (desde o início, 12 meses, 24 meses e no ano), o patrimônio consolidado com a divisão entre líquido e ilíquido, o custo de aquisição e o resultado sobre o custo, seguidos da variação no dia, no mês, no ano e desde o início. Logo abaixo, uma faixa de indicadores reúne TWR no período, TWR anualizado, MWR (IRR), volatilidade, índice de Sharpe e drawdown máximo. Na continuação da tela, fora do recorte da figura, quatro abas trazem a alocação (por classe, Brasil × offshore, país, setor e moeda), a evolução patrimonial, a comparação com benchmarks e as posições.
 
 **Figura 27 — Wireframe: Dashboard Principal**
 
@@ -1868,7 +1871,7 @@ A Figura 27 apresenta o dashboard principal, organizado em quatro cards de KPI n
 
 ## 10.4 TELA DO FUNDO PE/VC
 
-A Figura 28 apresenta a tela específica de um fundo PE/VC, com cards de KPI (Commitment, Paid-In, Dry Powder, NAV Atual, Distribuições), painel de métricas PE/VC (MOIC, DPI, TVPI, IRR, J-Curve, Anos do Fundo), histórico cronológico de eventos (capital calls, distribuições e atualizações de NAV) e gráfico J-Curve mostrando o fluxo de caixa acumulado.
+A Figura 28 apresenta a tela específica de um fundo PE/VC, com cards de KPI (Commitment, Capital Integralizado, Dry Powder e NAV Atual), painel de métricas PE/VC (DPI, RVPI, TVPI/MOIC, IRR e Anos do Fundo) e gráfico J-Curve mostrando o fluxo de caixa acumulado do investidor. Abaixo do gráfico, duas abas trazem o histórico cronológico de eventos (capital calls, distribuições e atualizações de NAV) e o formulário de registro de novo evento.
 
 **Figura 28 — Wireframe: Tela de Fundo PE/VC**
 
