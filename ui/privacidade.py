@@ -200,8 +200,13 @@ def _exclusao(sessao, usuario) -> None:
         st.error("Marque a confirmação de ciência antes de prosseguir.")
         return
 
-    security.revogar_sessoes(sessao, usuario.id)
-    contagem = lgpd.excluir(sessao, usuario.id)
+    usuario_id = usuario.id
+    try:
+        contagem = lgpd.excluir(sessao, usuario_id)
+    except ValueError as erro:
+        comum.falha(erro)
+        return
+    security.revogar_sessoes(sessao, usuario_id)
     st.success(
         f"Conta excluída: {contagem['carteiras']} carteira(s), "
         f"{contagem['posicoes']} posição(ões) e {contagem['eventos']} evento(s) "

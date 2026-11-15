@@ -450,6 +450,23 @@ def corrigir_cadastro(
     return alterados
 
 
+def _exigir_outro_administrador(sessao: Session, usuario: Usuario) -> None:
+    """
+    UC-19 — o sistema nunca fica sem um administrador ativo. A regra vale para
+    qualquer caminho de exclusão, inclusive quando o próprio administrador
+    exclui a sua conta pela tela de privacidade.
+    """
+    if usuario.perfil != "ADMIN" or not usuario.ativo:
+        return
+    outros = sessao.scalar(
+        select(func.count()).select_from(Usuario)
+        .where(Usuario.perfil == "ADMIN", Usuario.ativo.is_(True), Usuario.id != usuario.id)
+    ) or 0
+    if outros == 0:
+        raise ValueError("O sistema precisa de ao menos um administrador ativo. "
+                         "Promova outro administrador antes de excluir esta conta.")
+
+
 def excluir(sessao: Session, usuario_id: str) -> dict:
     """
     RF-028 / RN-015 — elimina os dados pessoais e anonimiza o que a lei
@@ -458,6 +475,7 @@ def excluir(sessao: Session, usuario_id: str) -> dict:
     usuario = sessao.get(Usuario, usuario_id)
     if usuario is None:
         raise ValueError("Usuário inexistente.")
+    _exigir_outro_administrador(sessao, usuario)
 
     cliente = sessao.scalar(select(Cliente).where(Cliente.usuario_id == usuario_id))
     contagem = {"carteiras": 0, "posicoes": 0, "eventos": 0, "logs_anonimizados": 0}
