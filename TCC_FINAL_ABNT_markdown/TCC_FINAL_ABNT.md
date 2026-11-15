@@ -284,7 +284,7 @@ São objetivos específicos deste trabalho:
 - Implementar módulo de cadastro e gestão de ativos líquidos, incluindo ações, fundos de investimento, títulos públicos e privados, tanto no mercado brasileiro quanto internacional;
 - Implementar módulo de investimentos ilíquidos com suporte a Private Equity, Venture Capital e Real Estate, incluindo controle de chamadas de capital, distribuições e atualização periódica de NAV;
 - Desenvolver templates padronizados em XLSX como mecanismo principal de ingestão de dados, com validação automática estrutural e semântica;
-- Integrar APIs externas (Yahoo Finance, CVM, Tesouro Direto e BCB) para enriquecimento automático de preços de mercado, aplicável aos ativos que possuem ticker listado;
+- Integrar APIs externas (Yahoo Finance e PTAX do BCB) para enriquecimento automático de preços de mercado, aplicável aos ativos que possuem ticker listado, e de taxas de câmbio;
 - Desenvolver mecanismo de consolidação multi-moeda com conversão automática entre BRL, USD e EUR, utilizando taxas de câmbio históricas para cálculos retroativos;
 - Implementar motor de cálculo de rentabilidade utilizando as metodologias TWR (Time-Weighted Return) e MWR (Money-Weighted Return), conforme apropriado para cada classe de ativo;
 - Construir interface interativa com dashboards de visualização, incluindo alocação por classe, setor e geografia, evolução patrimonial e comparação com benchmarks;
@@ -969,7 +969,7 @@ A arquitetura do sistema é organizada em três grandes camadas lógicas, alinha
 - **Camada de Apresentação:** telas Streamlit para dashboard, importação, cadastros, relatórios e privacidade (LGPD);
 - **Camada de Aplicação (Serviços):** controllers e serviços de domínio (`ImportController`, `DashboardController`, `PEController`, `AuthService`, `PrecoService`, `CambioService`, `RentabilidadeService`, `MetricasPEService`, `AlocacaoService`);
 - **Camada de Persistência:** repositórios SQLAlchemy ORM sobre arquivo SQLite local (`carteira.db`) em volume persistente;
-- **Camada de Integração:** clients HTTP para APIs externas (Yahoo Finance, CVM, BCB, Tesouro Direto), com cache local e tratamento de falhas (retry/backoff/circuit-breaker).
+- **Camada de Integração:** clients HTTP para APIs externas (Yahoo Finance e PTAX do BCB), com cache local e manutenção do último valor conhecido em caso de falha.
 
 A aplicação pode ser empacotada via Docker para garantir portabilidade, embora o uso de SQLite permita também execução nativa sem contêineres. Toda a aplicação roda em ambiente single-host, com o arquivo do banco de dados e os uploads de templates armazenados em volumes persistentes.
 
@@ -1161,7 +1161,7 @@ Os atores do sistema são definidos como:
 - **Cliente (Investidor):** usuário final do sistema, responsável por importar e visualizar sua própria carteira;
 - **Colaborador (Gestor Familiar):** membro do núcleo familiar autorizado pelo titular a visualizar e auxiliar na gestão da carteira do próprio investidor; corresponde ao perfil COLABORADOR do controle de acesso (RN-013);
 - **Administrador:** responsável pela gestão de usuários, configurações globais e auditoria;
-- **API Externa (ator de sistema):** Yahoo Finance, Portal CVM, BCB e Tesouro Direto — consumidos pelo sistema para enriquecimento de preços e taxas de câmbio.
+- **API Externa (ator de sistema):** Yahoo Finance e PTAX do BCB — consumidos pelo sistema para enriquecimento de preços e taxas de câmbio.
 
 ## 6.2 ESPECIFICAÇÃO DETALHADA DOS CASOS DE USO
 
@@ -1886,7 +1886,7 @@ A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementa
 
 A modelagem detalhada apresentada nos capítulos 6, 7 e 8 (UML, MER, DDL e BPMN) e os wireframes do capítulo 10 constituem a base técnica para a execução do projeto nas fases subsequentes do cronograma. A matriz de rastreabilidade (Quadro 22) e o catálogo de regras de negócio (Quadro 21) facilitam a verificação contínua de cobertura entre requisitos, implementação e testes.
 
-Como evolução futura, sugere-se: (i) integração com o ecossistema Open Finance para coleta automática de posições, reduzindo a dependência do template como única via de entrada; (ii) suporte a criptoativos, com integração às principais exchanges; (iii) desenvolvimento de aplicativo mobile com sincronização local-nuvem; (iv) ampliação do motor de cálculo com módulo de apuração tributária (Imposto de Renda e come-cotas); (v) inclusão de funcionalidades de planejamento financeiro e projeção patrimonial baseadas em métodos como Monte Carlo; e (vi) migração opcional para PostgreSQL em cenários multi-tenant onde a concorrência de escrita justifique a complexidade adicional. Tais expansões, no entanto, encontram-se fora do escopo desta primeira versão e poderão ser endereçadas em trabalhos subsequentes.
+Como evolução futura, sugere-se: (i) integração com o ecossistema Open Finance para coleta automática de posições, reduzindo a dependência do template como única via de entrada; (ii) suporte a criptoativos, com integração às principais exchanges; (iii) desenvolvimento de aplicativo mobile com sincronização local-nuvem; (iv) ampliação do motor de cálculo com módulo de apuração tributária (Imposto de Renda e come-cotas); (v) inclusão de funcionalidades de planejamento financeiro e projeção patrimonial baseadas em métodos como Monte Carlo; e (vi) migração opcional para PostgreSQL em cenários multi-tenant onde a concorrência de escrita justifique a complexidade adicional. Na camada de integração, registram-se ainda como trabalhos futuros: a coleta de cotas de fundos pelo Portal de Dados Abertos da CVM e de preços e taxas de títulos públicos pelo Tesouro Direto; a coleta real das séries de benchmarks (CDI, IBOV, IPCA, S&P 500 e IFIX), que na demonstração desta versão são simuladas e identificadas com a fonte SIMULADO; e mecanismos de resiliência nas coletas, como retry com backoff e circuit breaker. Tais expansões, no entanto, encontram-se fora do escopo desta primeira versão e poderão ser endereçadas em trabalhos subsequentes.
 
 Reconhecem-se, ainda, as limitações desta etapa: a necessidade do sistema foi inferida de análise documental e comparativa, sem validação empírica junto ao público-alvo, prevista para o TCC II (seção 3.4); a análise de plataformas baseou-se em funcionalidades anunciadas publicamente, sujeitas a alteração; a ingestão depende do preenchimento manual de templates; o enriquecimento de preços depende de fontes gratuitas, sujeitas a limites de uso e mudanças de contrato; e a arquitetura monousuário em SQLite exigirá migração em cenários multiusuário (seção 5.8).
 
