@@ -538,7 +538,7 @@ Cabe destacar uma limitação de interoperabilidade: o sistema não importa qual
 
 Essa rigidez constitui uma decisão de projeto deliberada: a padronização da entrada favorece o desacoplamento em relação a sistemas de terceiros, o rigor dos cálculos e a privacidade do usuário. Arquivos fora do padrão são rejeitados pela camada de validação, com mensagens orientando a correção.
 
-As fontes externas (Yahoo Finance, Portal de Dados Abertos da CVM, API do Tesouro Direto e BCB) são utilizadas como mecanismo complementar para enriquecimento dos preços de mercado dos ativos que possuem ticker listado. Ou seja, para cada posição informada pelo cliente via template, o sistema verifica se o ativo possui ticker listado e, em caso afirmativo, busca automaticamente o preço de tela atual e o persiste na tabela de preços, vinculando-o à posição.
+As fontes externas (Yahoo Finance, para cotações, e PTAX do Banco Central, para taxas de câmbio) são utilizadas como mecanismo complementar para enriquecimento dos preços de mercado dos ativos que possuem ticker listado. Ou seja, para cada posição informada pelo cliente via template, o sistema verifica se o ativo possui ticker listado e, em caso afirmativo, busca automaticamente o preço de tela atual e o persiste na tabela de preços, vinculando-o à posição.
 
 Para ativos sem ticker listado (notadamente PE, VC e Real Estate), o preço é integralmente derivado do template, alimentado pelo preço médio e pelo valor financeiro informados pelo cliente.
 
@@ -546,7 +546,7 @@ Para ativos sem ticker listado (notadamente PE, VC e Real Estate), o preço é i
 
 Para ações listadas na B3 e em bolsas internacionais, a principal fonte de enriquecimento é a API do Yahoo Finance, acessível via biblioteca Python `yfinance` (YAHOO FINANCE, 2026). Esta API fornece cotações históricas, preços de abertura e fechamento, volume negociado e informações corporativas. A identificação dos ativos é feita por meio do ticker (por exemplo, `PETR4.SA` para ações brasileiras e `AAPL` para ações americanas).
 
-Os dados de fundos de investimento registrados na CVM são disponibilizados através do Portal de Dados Abertos da CVM (CVM, 2026). As informações incluem valor da cota diária, patrimônio líquido e composição da carteira, identificadas pelo CNPJ do fundo. Para títulos públicos federais, o Tesouro Nacional disponibiliza dados de preços e taxas em arquivos CSV atualizados diariamente (TESOURO NACIONAL, 2026).
+Para fundos de investimento e títulos públicos federais também existem fontes públicas oficiais. O Portal de Dados Abertos da CVM (CVM, 2026) divulga o valor da cota diária, o patrimônio líquido e a composição da carteira de cada fundo, identificado pelo CNPJ, e o Tesouro Nacional disponibiliza preços e taxas em arquivos CSV atualizados diariamente (TESOURO NACIONAL, 2026). Essas duas fontes não são integradas nesta versão: quando a cotação de um ativo não é encontrada no Yahoo Finance, permanece valendo o preço informado pelo cliente no template. A integração com ambas fica registrada como trabalho futuro no capítulo de conclusão.
 
 #### Ativos sem ticker listado (ilíquidos)
 
@@ -903,7 +903,7 @@ Foram identificados riscos técnicos e de projeto que podem impactar o desenvolv
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
 | API da B3 com acesso restrito ou pago | Alta | Alto | Usar Yahoo Finance como fallback para ativos B3 listados |
-| CVM sem endpoint REST estruturado | Média | Médio | Usar dados abertos do Portal de Dados CVM (CSV) |
+| CVM sem endpoint REST estruturado | Média | Médio | Nesta versão, manter para os fundos o valor informado no template; a leitura dos dados abertos do Portal de Dados CVM (CSV) fica como trabalho futuro |
 | Complexidade do modelo de dados ilíquidos | Média | Alto | Simplificar para NAV manual com histórico auditável via template |
 | Scope creep (expansão não planejada) | Alta | Alto | Controle rígido do escopo definido neste documento |
 | Dados offline/inconsistentes de cotações | Baixa | Médio | Cache local em SQLite e flag de dado não atualizado na UI |
@@ -932,9 +932,8 @@ O Quadro 17 apresenta a stack escolhida.
 | Banco de Dados | SQLite 3.40+ | Banco em arquivo único, sem servidor, ideal para deploy local; suporte a transações ACID; WAL mode |
 | ORM | SQLAlchemy 2.0 | Abstração do banco com suporte a migrações (Alembic) |
 | Templates XLSX | openpyxl | Leitura e geração de templates padronizados (.xlsx) |
-| Coleta — Global | yfinance | Ativos globais: ações, ETFs, índices |
-| Coleta — Brasil | Requests + BeautifulSoup | Scraping estruturado de CVM e fontes brasileiras |
-| Coleta — Câmbio | API BCB | Taxas de câmbio oficiais do Banco Central |
+| Coleta — Cotações | yfinance | Ações, ETFs e demais ativos listados, no Brasil e no exterior |
+| Coleta — Câmbio | Requests + API PTAX do BCB | Taxas de câmbio oficiais do Banco Central, obtidas por requisição HTTP |
 | Agendamento | APScheduler | Coleta automática de preços ao fim do pregão (ativos listados) |
 | Distribuição | Instalador para Windows (Inno Setup, com Python embutido) | Forma principal de entrega: instalação por usuário, sem privilégios de administrador e sem exigir Python na máquina |
 | Containerização | Docker (opcional) | Alternativa de execução em ambiente padronizado e reproduzível |
@@ -955,7 +954,7 @@ Mais do que uma linguagem de propósito geral, o Python foi adotado por seu ecos
 
 A biblioteca OpenPyXL responde diretamente pela estratégia de ingestão por planilha. Ela permite ler e gravar arquivos .xlsx sem depender da instalação do Microsoft Excel, viabilizando tanto a geração dos templates padronizados — com cabeçalhos, listas de validação e múltiplas abas (Quadros 44 a 46) — quanto a leitura estruturada dos dados preenchidos pelo investidor.
 
-Para o enriquecimento automático de preços, a biblioteca yfinance oferece acesso programático a cotações de ativos líquidos; já as bibliotecas Requests e BeautifulSoup permitem a coleta estruturada de dados em fontes públicas oficiais, como a CVM, por meio de requisições HTTP e análise de páginas. A opção por fontes públicas e gratuitas é coerente com o caráter acadêmico do trabalho.
+Para o enriquecimento automático de preços, a biblioteca yfinance oferece acesso programático a cotações de ativos líquidos; já a biblioteca Requests é usada para consultar a PTAX na API de dados abertos do Banco Central, por meio de requisições HTTP. A opção por fontes públicas e gratuitas é coerente com o caráter acadêmico do trabalho.
 
 A camada de apresentação foi construída com Streamlit por se tratar de uma aplicação centrada em dados (dashboards, tabelas e gráficos consolidados), e não de uma interface ricamente interativa. O Streamlit permite desenvolver aplicações de dados diretamente em Python, com integração imediata à camada de cálculo, dispensando uma stack de frontend separada, uma camada de API REST e um processo de build.
 
@@ -1287,7 +1286,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Atores secundários | API Externa (Yahoo Finance) |
 | Pré-condições | Ativo com possui_ticker_listado = verdadeiro (RN-006). |
 | Disparador | Inclusão por outro caso de uso, ou acionamento de "Atualizar cotações" no dashboard. |
-| Fluxo principal | 1. Sistema verifica o cache local em PRECO_HISTORICO; se houver preço de fonte externa dentro da janela de validade, devolve-o sem consultar a API.<br>2. Sistema converte o ticker canônico no símbolo da fonte externa via ASSET_MAPPING ou pela regra de sufixo por mercado.<br>3. Sistema consulta a API com limite de tempo e tentativas.<br>4. Sistema persiste o fechamento mais recente em PRECO_HISTORICO com fonte identificada.<br>5. Sistema devolve preço e data ao caso de uso chamador. |
+| Fluxo principal | 1. Sistema verifica o cache local em PRECO_HISTORICO; se houver preço de fonte externa dentro da janela de validade, devolve-o sem consultar a API.<br>2. Sistema converte o ticker canônico no símbolo da fonte externa via ASSET_MAPPING ou pela regra de sufixo por mercado.<br>3. Sistema consulta a API uma única vez; qualquer falha é tratada pela exceção EX-01.<br>4. Sistema persiste o fechamento mais recente em PRECO_HISTORICO com fonte identificada.<br>5. Sistema devolve preço e data ao caso de uso chamador. |
 | Fluxos alternativos | FA-01 (Cache válido): preço devolvido do cache, sem chamada externa. |
 | Exceções | EX-01 (API indisponível, limite excedido ou símbolo não encontrado): sistema mantém o último preço conhecido, sinaliza a posição como desatualizada e prossegue sem interromper o chamador.<br>EX-02 (Ativo não listado): sistema não consulta a API e aplica RN-007. |
 | Pós-condição | PRECO_HISTORICO atualizado ou último preço conhecido preservado, com indicação da fonte. |
@@ -1881,7 +1880,7 @@ Este Trabalho de Conclusão de Curso apresentou a proposta de desenvolvimento de
 
 O estudo das plataformas concorrentes evidenciou três lacunas relevantes no mercado brasileiro: a ausência de suporte completo a ativos ilíquidos como Private Equity e Venture Capital, a limitação na consolidação multi-moeda com taxas históricas e a inacessibilidade das plataformas profissionais (B2B) para investidores individuais. O sistema proposto foi concebido para endereçar essas lacunas, respondendo ao problema formulado na introdução por meio de uma arquitetura em camadas, de um modelo de ingestão padronizado e de um motor de cálculo que distingue as métricas adequadas a cada classe de ativo.
 
-Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta: (i) o uso de templates padronizados em XLSX como mecanismo principal de ingestão, oferecendo ao cliente um caminho estruturado e auditável para informar suas posições; (ii) o uso de APIs externas (Yahoo Finance, CVM, BCB e Tesouro Direto) restrito ao enriquecimento de preços de mercado para ativos com ticker listado, mantendo a soberania do cliente sobre seus dados primários; e (iii) a adoção do SQLite como banco de dados local em arquivo, que simplifica o deploy e a manutenção e atende aos requisitos transacionais da versão monousuário.
+Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta: (i) o uso de templates padronizados em XLSX como mecanismo principal de ingestão, oferecendo ao cliente um caminho estruturado e auditável para informar suas posições; (ii) o uso de APIs externas (Yahoo Finance e PTAX do BCB) restrito ao enriquecimento de preços de mercado para ativos com ticker listado e à obtenção de taxas de câmbio, mantendo a soberania do cliente sobre seus dados primários; e (iii) a adoção do SQLite como banco de dados local em arquivo, que simplifica o deploy e a manutenção e atende aos requisitos transacionais da versão monousuário.
 
 A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit e SQLite, distribuída por instalador para Windows e, opcionalmente, por Docker (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
 
