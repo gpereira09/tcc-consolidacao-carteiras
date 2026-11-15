@@ -61,6 +61,20 @@ class TestLancamentosManuais:
                                           tipo="VENDA", data_transacao=date(2024, 2, 1),
                                           quantidade=101, preco=30)
 
+    def test_venda_retroativa_acima_da_posicao_da_data(self, sessao, carteira):
+        """UC-06: vale a posição que existia na data da venda, não a de hoje."""
+        pos = self._ativo(sessao, carteira)
+        u = usuario_de(sessao, carteira)
+        operacoes.registrar_transacao(sessao, u, pos.id, tipo="COMPRA",
+                                      data_transacao=date(2024, 3, 1), quantidade=100, preco=30)
+        with pytest.raises(ValueError, match="excede"):
+            operacoes.registrar_transacao(sessao, u, pos.id, tipo="VENDA",
+                                          data_transacao=date(2024, 2, 1), quantidade=150, preco=30)
+        assert pos.quantidade == 200
+        operacoes.registrar_transacao(sessao, u, pos.id, tipo="VENDA",
+                                      data_transacao=date(2024, 2, 1), quantidade=100, preco=30)
+        assert pos.quantidade == 100
+
     def test_data_futura(self, sessao, carteira):
         pos = self._ativo(sessao, carteira)
         with pytest.raises(ValueError, match="futura"):
