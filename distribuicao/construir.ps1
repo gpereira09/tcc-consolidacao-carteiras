@@ -59,7 +59,7 @@ if (-not $SemInstalador -and -not $Iscc) {
 }
 
 Etapa "Limpando $Build"
-if (Test-Path $Build) { Remove-Item $Build -Recurse -Force }
+if (Test-Path $Build) { Remove-Item -LiteralPath "\\?\$Build" -Recurse -Force }
 New-Item -ItemType Directory -Force $Build, $Cache, $Saida | Out-Null
 
 Etapa "Python embutido $PyVersao"
@@ -97,6 +97,10 @@ if (-not (Test-Path $Travadas)) {
     $congeladas = & $PyHost -m pip list --path $SitePackages --format=freeze --disable-pip-version-check
     [IO.File]::WriteAllLines($Travadas, ($cab + $congeladas), (New-Object Text.UTF8Encoding $false))
 }
+# Modelos do comando "streamlit skills": não são usados por "streamlit run" e têm
+# caminhos longos, que estouram o limite de 260 caracteres do Windows na compilação.
+$SkillsStreamlit = Join-Path $SitePackages "streamlit\.agents"
+if (Test-Path $SkillsStreamlit) { Remove-Item -LiteralPath "\\?\$SkillsStreamlit" -Recurse -Force }
 
 Etapa "Ícone"
 $Icone = Join-Path $Dist "carteira.ico"
@@ -105,9 +109,10 @@ if (-not (Test-Path $Icone)) { Executar $PyHost @((Join-Path $Dist "gerar_icone.
 Etapa "Código da aplicação"
 $AppDir = Join-Path $Build "app"
 $excluirDirs = @("data", "tests", "certs", ".claude", ".pytest_cache", "__pycache__", "htmlcov",
-    ".venv", "venv", ".git", "telas", (Join-Path $Dist "build"), (Join-Path $Dist "cache"),
-    (Join-Path $Dist "saida"))
-$excluirArqs = @(".coverage", "*.pyc", ".env", "*.local", ".mcp.json", "settings.local.json")
+    ".venv", "venv", ".git", "telas", ".cursor", ".github", "guardioes", "TCC_FINAL_ABNT_markdown",
+    (Join-Path $Dist "build"), (Join-Path $Dist "cache"), (Join-Path $Dist "saida"))
+$excluirArqs = @(".coverage", "*.pyc", ".env", "*.local", ".mcp.json", "settings.local.json",
+    "AGENTS.md", "CLAUDE.md", "GEMINI.md")
 & robocopy $Raiz $AppDir /E /NFL /NDL /NJH /NJS /NP /XD @excluirDirs /XF @excluirArqs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ($LASTEXITCODE)" }
 foreach ($desnecessario in @("Dockerfile", "docker-compose.yml", "docker-entrypoint.sh", ".dockerignore",
