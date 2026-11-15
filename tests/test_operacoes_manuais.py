@@ -8,9 +8,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from src import operacoes
 from src.calc import consolidacao, pe
+from src.models import Posicao
 from tests.apoio import cadastrar_acao, criar_usuario, usuario_de
 
 
@@ -102,6 +104,13 @@ class TestFundosManuais:
     def test_cadastro(self, sessao, carteira):
         fundo = self._fundo(sessao, carteira)
         assert fundo.identificador_fundo == "FUND-X" and fundo.dry_powder == 1_000_000
+
+    def test_recadastro_mantem_uma_unica_cota(self, sessao, carteira):
+        """Atualizar o fundo (UC-08 FA-01) não soma quantidade à posição."""
+        fundo = self._fundo(sessao, carteira)
+        self._fundo(sessao, carteira)
+        posicao = sessao.scalar(select(Posicao).where(Posicao.ativo_id == fundo.ativo_id))
+        assert posicao.quantidade == 1
 
     def test_commitment_nao_fica_abaixo_do_ja_chamado(self, sessao, carteira):
         """RN-004: recadastrar o fundo não pode deixar o dry powder negativo."""

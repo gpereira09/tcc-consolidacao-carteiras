@@ -659,11 +659,17 @@ def upsert_fundo(sessao: Session, carteira_id: str, *, identificador: str, nome:
         fundo.gestor = gestor
         fundo.data_fim_prevista = data_fim_prevista
 
-    upsert_posicao(
-        sessao, carteira_id, ativo.id,
-        quantidade=1.0, preco_medio=0.0, valor_financeiro=0.0,
-        data_inicial=data_inicio,
-    )
+    # O fundo tem uma única posição, de quantidade 1 (o valor vem do NAV).
+    # Só é criada na primeira vez: recadastrar o fundo não pode somar outra cota.
+    ja_tem_posicao = sessao.scalar(
+        select(Posicao.id).where(Posicao.carteira_id == carteira_id,
+                                 Posicao.ativo_id == ativo.id))
+    if ja_tem_posicao is None:
+        upsert_posicao(
+            sessao, carteira_id, ativo.id,
+            quantidade=1.0, preco_medio=0.0, valor_financeiro=0.0,
+            data_inicial=data_inicio,
+        )
     return fundo
 
 
