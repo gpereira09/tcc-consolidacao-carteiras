@@ -153,15 +153,6 @@ def nota(texto: str) -> None:
     st.markdown(f'<div class="nota">{texto}</div>', unsafe_allow_html=True)
 
 
-def aviso_dados_sinteticos() -> None:
-    st.markdown(
-        '<div class="selo-sintetico"><b>Ambiente de demonstração.</b> Cotações, '
-        'câmbio e benchmarks desta base são gerados por simulação e não '
-        'representam valores reais de mercado.</div>',
-        unsafe_allow_html=True,
-    )
-
-
 def configurar_pagina(titulo: str) -> None:
     st.set_page_config(
         page_title=f"{titulo} · Consolidação de Carteiras",

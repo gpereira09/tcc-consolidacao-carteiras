@@ -30,8 +30,6 @@ def render() -> None:
 
     comum.cabecalho("Visão consolidada",
                     "Patrimônio agregado em ativos líquidos, fundos ilíquidos e imóveis.")
-    if precos.ha_dados_simulados(sessao):
-        comum.aviso_dados_sinteticos()
 
     col_periodo, col_acao = st.columns([3, 1])
     with col_periodo:

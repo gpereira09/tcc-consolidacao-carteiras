@@ -5,15 +5,15 @@ Séries de mercado sintéticas para validação acadêmica.
 
 Todas as séries produzidas aqui (câmbio, benchmarks e preços de ativos) são
 geradas por simulação e existem apenas para exercitar o sistema em ambiente
-offline, coerente com a nota do TCC de que os dados exibidos são ilustrativos
-e sintéticos. Registros gerados por este módulo recebem a marca de fonte
+offline: testes automatizados e carga demonstrativa sem acesso à internet.
+Registros gerados por este módulo recebem a marca de fonte
 'SIMULADO' em PRECO_HISTORICO / TAXA_CAMBIO, de modo que a origem fica
 explícita no banco e nunca se confunde com coleta real.
 
-Em produção, as mesmas tabelas são alimentadas por:
-    câmbio     → src.market.cambio.atualizar_bcb   (PTAX / Banco Central)
-    preços     → src.market.precos.atualizar_ativo (Yahoo Finance)
-    benchmarks → coleta equivalente por índice
+Com internet, as mesmas tabelas são alimentadas por:
+    câmbio     → src.market.cambio.atualizar_bcb      (PTAX / Banco Central)
+    preços     → src.market.precos.carregar_historico (Yahoo Finance)
+    benchmarks → src.market.benchmarks.atualizar      (Banco Central, Yahoo e B3)
 
 O gerador é determinístico (semente fixa por série): a mesma execução
 produz sempre os mesmos números, o que torna os testes reprodutíveis.
@@ -77,7 +77,7 @@ def _acumulador(
     return serie
 
 
-def gerar_cambio(sessao: Session, inicio: date, fim: date) -> int:
+def gerar_cambio(sessao: Session, inicio: date, fim: date, moedas=None) -> int:
     """USD/BRL, EUR/BRL e GBP/BRL sintéticos, em níveis plausíveis para o período."""
     total = 0
     for moeda, inicial, deriva, vol, semente in (
@@ -85,6 +85,8 @@ def gerar_cambio(sessao: Session, inicio: date, fim: date) -> int:
         ("EUR", 4.40, 0.070, 0.13, 20260202),
         ("GBP", 4.95, 0.065, 0.13, 20260303),
     ):
+        if moedas is not None and moeda not in moedas:
+            continue
         for dia, taxa in _passeio(inicio, fim, inicial, deriva, vol, semente):
             registrar_taxa(sessao, dia, moeda, "BRL", taxa, FONTE)
             total += 1

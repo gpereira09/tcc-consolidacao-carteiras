@@ -171,10 +171,11 @@ def _operacao(sessao) -> None:
                                 "Diária às 19h30 (Brasília) — RNF-006"),
                     unsafe_allow_html=True)
         if st.button("Executar coleta agora", use_container_width=True):
-            with st.spinner("Coletando cotações e PTAX…"):
+            with st.spinner("Coletando cotações, PTAX e benchmarks…"):
                 r = agendador.coletar_precos()
             st.success(f"{r.atualizados} de {r.ativos} ativos atualizados. "
-                       f"Câmbio: {r.cambio}. Falhas: {', '.join(r.falhas) or 'nenhuma'}.")
+                       f"Câmbio: {r.cambio}. Benchmarks: {r.benchmarks}. "
+                       f"Falhas: {', '.join(r.falhas) or 'nenhuma'}.")
     with c2:
         quando = proximas.get("backup_diario")
         st.markdown(comum.ficha("Próximo backup",

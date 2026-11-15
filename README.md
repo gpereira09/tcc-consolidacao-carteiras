@@ -20,7 +20,7 @@ Requer Python 3.11 ou superior.
 
 ```bash
 pip install -r requirements.txt
-python scripts/seed_demo.py                                   # banco, templates e carga demonstrativa
+python scripts/seed_demo.py                                   # banco, templates e carga demonstrativa (usa a internet)
 CARTEIRA_DATA_REFERENCIA=2026-09-22 streamlit run app.py      # http://localhost:8501
 ```
 
@@ -64,11 +64,25 @@ Contas da carga demonstrativa (senha `Senha123` para todas):
 | COLABORADOR | assessor@exemplo.com | as carteiras dos clientes vinculados a ele |
 | ADMIN | admin@exemplo.com | todas as carteiras e a tela de Administração |
 
-### Números da demonstração (reproduzíveis)
+### Dados da demonstração
 
-A carga usa uma **data de referência explícita**: `python scripts/seed_demo.py --data AAAA-MM-DD`, com padrão 2026-09-22. Com a mesma data, os números são idênticos em qualquer dia e em qualquer máquina. O teste `tests/test_demo_reproduzivel.py` confere isso, e a carga foi repetida dentro do contêiner Docker com o mesmo resultado.
+As posições, os fundos e os imóveis da demonstração são os exemplos dos três templates XLSX. As séries de mercado são reais e coletadas na carga, de 2019 até a data de referência (`--data AAAA-MM-DD`, padrão 2026-09-22):
 
-Em 22/09/2026, com moeda base BRL:
+| Série | Fonte |
+|---|---|
+| Câmbio USD, EUR e GBP | PTAX de venda, Banco Central |
+| CDI e IPCA | Sistema Gerenciador de Séries Temporais (SGS), Banco Central |
+| Ibovespa e S&P 500 | Yahoo Finance |
+| IFIX | B3 |
+| Histórico de preços dos ativos listados | Yahoo Finance |
+
+Um ativo sem cotação na fonte externa (o título do Tesouro Direto do exemplo) fica com o preço informado no template (RN-007). Depois da carga, a coleta diária das 19h30 mantém as mesmas séries atualizadas.
+
+### Números reproduzíveis (modo simulado)
+
+Sem internet, ou com `python scripts/seed_demo.py --simulado`, a carga gera as séries de mercado por simulação determinística (`src/market/seed_sintetico.py`) e as grava com a fonte `SIMULADO`. Nesse modo, com a mesma data de referência, os números são idênticos em qualquer dia e em qualquer máquina. O teste `tests/test_demo_reproduzivel.py` confere isso.
+
+Em 22/09/2026, com moeda base BRL e séries simuladas:
 
 | Indicador | Valor |
 |---|---|
@@ -79,8 +93,6 @@ Em 22/09/2026, com moeda base BRL:
 | MWR (IRR) desde o início | 7,41% a.a. |
 | TWR e MWR em 12 meses | 4,16% e 4,16% |
 | Volatilidade / drawdown máximo | 9,57% / −6,24% |
-
-> **Os dados de mercado da demonstração são sintéticos.** Câmbio, benchmarks e cotações são gerados por simulação determinística (`src/market/seed_sintetico.py`) e marcados com fonte `SIMULADO`. A interface e o PDF exibem esse aviso sempre que há dados simulados na base. Em produção, câmbio e cotações vêm dos coletores reais (PTAX do Banco Central e Yahoo Finance). Para benchmarks não há coletor real nesta versão.
 
 ---
 
@@ -93,13 +105,13 @@ Em 22/09/2026, com moeda base BRL:
 | Cadastro manual de ativo e de fundo; compra, venda e provento; novas carteiras | `src/operacoes.py`, tela *Lançamentos manuais* | RF-007, RF-009, UC-05, UC-06, UC-08 |
 | Consolidação multimoeda (BRL, USD, EUR, GBP), com taxa histórica e forward fill | `src/market/cambio.py`, `src/calc/consolidacao.py` | RF-014, RN-009 |
 | Enriquecimento de preço, nome e setor de ativos listados (Yahoo Finance) | `src/market/precos.py` | RF-008, RN-006, RN-007 |
-| Coleta diária de preços e PTAX às 19h30 (Brasília) | `src/agendador.py`, `scripts/tarefas_diarias.py` | RF-013, RNF-006 |
+| Coleta diária de preços, PTAX e benchmarks às 19h30 (Brasília) | `src/agendador.py`, `scripts/tarefas_diarias.py` | RF-013, RNF-006 |
 | TWR da carteira e de cada ativo (Dietz modificado em subperíodos mensais) | `src/calc/rentabilidade.py`, `consolidacao.rentabilidade_por_ativo` | RF-015, RN-010 |
 | MWR/IRR por Newton-Raphson, com bisseção de reserva | `src/calc/rentabilidade.py` | RF-016, RN-011 |
 | Volatilidade, drawdown e Sharpe sobre a cota | `src/calc/rentabilidade.py` | Seção 2.4.1 |
 | Capital calls (pendente → pago), distribuições classificadas, NAV com roll-forward, DPI/RVPI/TVPI/IRR, curva J | `src/calc/pe.py`, tela *Fundos PE/VC* | RF-010..012, RF-017, RN-004, RN-005, RN-012 |
 | Imóveis diretos: valorização, yield e reavaliação versionada | tela *Imóveis* | RF-006 |
-| Benchmarks CDI, IBOV, IPCA, S&P 500 e IFIX, na moeda base | `src/market/benchmarks.py` | RF-018 (dados simulados) |
+| Benchmarks CDI, IBOV, IPCA, S&P 500 e IFIX, na moeda base | `src/market/benchmarks.py` | RF-018 |
 | Dashboard: patrimônio, variações, alocações, evolução, posições | tela *Visão consolidada* | RF-019..022 |
 | Relatórios em PDF, Excel e CSV | `src/relatorio_pdf.py`, `src/relatorio_xlsx.py` | RF-023 |
 | Login com 2FA opcional, refresh token e recuperação de senha por e-mail | `src/security.py`, `src/notificacao.py` | RF-001..003, RN-001 |
@@ -112,7 +124,6 @@ Em 22/09/2026, com moeda base BRL:
 Não estão implementados:
 
 - coleta da CVM e do Tesouro Direto;
-- coleta real de benchmarks;
 - P/VP de imóveis;
 - registro do IP na auditoria;
 - cifragem de valores financeiros;
