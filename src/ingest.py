@@ -470,6 +470,11 @@ _ABA_SIMPLES = {
 }
 
 
+def _chave_evento(identificador, data_evento, tipo, valor, status) -> tuple:
+    """Identifica um evento de fundo para reconhecer a reimportação do mesmo arquivo."""
+    return identificador, data_evento, tipo, round(float(valor), 2), status
+
+
 def _processar_pevc(wb, tpl: Template, prev: Preview,
                     sessao: Session | None, carteira_id: str | None) -> None:
     aba_f, aba_e = tpl.aba("Fundos"), tpl.aba("Eventos")
@@ -495,10 +500,14 @@ def _processar_pevc(wb, tpl: Template, prev: Preview,
 
     pago: dict[str, float] = {}
     comprometido: dict[str, float] = {}
+    ja_registrados: set[tuple] = set()
     if sessao is not None and carteira_id:
         for fundo in fundos_da_carteira(sessao, carteira_id):
             m = pe.calcular(fundo, sessao)
             ident = fundo.identificador_fundo
+            ja_registrados.update(
+                _chave_evento(ident, e.data_evento, e.tipo_evento, e.valor, e.status)
+                for e in fundo.eventos)
             indice.setdefault(ident, {
                 "identificador_fundo": ident,
                 "commitment": fundo.commitment,
@@ -524,6 +533,12 @@ def _processar_pevc(wb, tpl: Template, prev: Preview,
 
     for nlinha, reg, erros in ordenadas:
         ident = reg.get("identificador_fundo")
+        if not erros and _chave_evento(ident, reg["data_evento"], reg["tipo_evento"],
+                                       reg["valor_evento"], reg["status"]) in ja_registrados:
+            prev.avisos.append(Ocorrencia(
+                aba_e.nome, nlinha, None,
+                "evento já registrado neste fundo; a linha foi ignorada para não duplicar"))
+            continue
         if not erros and ident in indice:
             fundo = indice[ident]
             tipo, status, valor = reg["tipo_evento"], reg["status"], reg["valor_evento"]

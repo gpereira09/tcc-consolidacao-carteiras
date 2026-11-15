@@ -222,6 +222,24 @@ class TestPersistencia:
         assert fundo.dry_powder == pytest.approx(250_000.0)
         assert fundo.nav_atual == pytest.approx(2_050_000.0)
 
+    def test_reimportacao_nao_duplica_eventos_do_fundo(self, sessao, carteira, pevc):
+        """UC-08 FA-01: importar o mesmo arquivo de novo não repete os eventos."""
+        importar_arquivo(sessao, carteira, pevc, "PEVC")
+        fundos = sessao.scalars(select(AtivoIliquido)).all()
+        antes = {f.identificador_fundo: (len(f.eventos), f.paid_in_capital,
+                                         f.nav_atual) for f in fundos}
+
+        prev = ingest.validar_arquivo(pevc, "PEVC", sessao, carteira.id)
+        assert not prev.erros_semanticos
+        assert not prev.validos["Eventos"]
+        assert any("já registrado" in a.mensagem for a in prev.avisos)
+        ingest.importar(sessao, prev, carteira.id, usuario_de(sessao, carteira).id)
+
+        for f in sessao.scalars(select(AtivoIliquido)).all():
+            sessao.refresh(f)
+            assert (len(f.eventos), f.paid_in_capital,
+                    f.nav_atual) == antes[f.identificador_fundo]
+
     def test_importa_imoveis(self, sessao, carteira, imoveis):
         log = importar_arquivo(sessao, carteira, imoveis, "IMOVEIS")
         assert log.linhas_importadas == 4
