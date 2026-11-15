@@ -10,7 +10,7 @@ Plataforma web para consolidar o patrimônio de investidores pessoa física cuja
 3. Apura a rentabilidade (TWR, inclusive por ativo, e MWR) e as métricas de PE/VC (DPI, RVPI, TVPI e IRR).
 4. Compara o resultado com benchmarks.
 
-A situação de cada requisito do TCC (28 RF, 12 RNF, 15 RN) está classificada, com evidências, em [`../auditoria/IMPLEMENTACAO-FINAL.md`](../auditoria/IMPLEMENTACAO-FINAL.md). A classificação usa três categorias: implementado, parcial e não implementado. A arquitetura e as convenções de cálculo estão em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md). Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
+A especificação do sistema é a monografia, versionada em [`TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`](TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md), com 28 requisitos funcionais, 12 não funcionais e 15 regras de negócio. Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
 
 ---
 
@@ -28,12 +28,33 @@ No Windows (PowerShell): `$env:CARTEIRA_DATA_REFERENCIA="2026-09-22"; streamlit 
 
 Também é possível usar `./run.sh` (Linux/macOS) ou `run.bat` (Windows). Esses scripts carregam a demonstração se não houver banco e sobem a aplicação. Sem `CARTEIRA_DATA_REFERENCIA`, a aplicação calcula até a data de hoje.
 
+Em todos os modos a aplicação atende só na própria máquina (`127.0.0.1`), porque as contas da demonstração têm senha pública. Para abrir na rede, troque essas senhas antes e depois passe `--server.address` ao Streamlit ou ajuste a porta publicada no `docker-compose.yml`.
+
 | Outros modos | Comando |
 |---|---|
 | HTTPS/TLS local (RNF-005) | `./run.sh --https` ou `run.bat --https` → https://localhost:8501 (certificado autoassinado gerado na hora) |
 | Docker (RNF-009) | `docker compose up --build` → https://localhost:8501 |
 | Tarefas diárias via cron | `python scripts/tarefas_diarias.py [coleta\|backup]` |
 | Testes | `pip install -r requirements-dev.txt` e depois `python -m pytest -q` |
+
+### Instalador para Windows (usuário final)
+
+Para quem só quer usar o sistema, sem Python, VS Code nem terminal: `Instalar-ConsolidacaoCarteiras-<versão>.exe`.
+
+- Instala por usuário, **sem pedir administrador**, em `%LOCALAPPDATA%\Programs\ConsolidacaoCarteiras`, com Python 3.14 embutido.
+- Os dados (banco, chaves, backups, registros) ficam à parte, em `%LOCALAPPDATA%\ConsolidacaoCarteiras`. Atualizar o programa não toca neles, e a desinstalação pergunta se devem ser apagados (o padrão é mantê-los).
+- Opções do assistente: carregar a demonstração (só se ainda não houver banco), **iniciar com o Windows em segundo plano** (coleta às 19h30 e backup às 22h30 sem abrir nada) e atalho na área de trabalho.
+- O atalho abre o navegador em `http://127.0.0.1:<porta>`; o servidor escuta só na própria máquina. Um ícone na bandeja oferece *Abrir*, *Pasta de dados* e *Encerrar*.
+- Cada instalação gera o seu próprio segredo JWT; a chave de desenvolvimento de `config.py` não é usada.
+
+Para gerar o instalador (máquina de build com Python 3.14 e Inno Setup 6):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File distribuicao\construir.ps1            # → distribuicao\saida\
+powershell -ExecutionPolicy Bypass -File distribuicao\construir.ps1 -SemInstalador   # só a pasta portátil
+```
+
+As versões das bibliotecas embarcadas ficam travadas em `distribuicao/requisitos-instalador.txt`, validadas com a suíte completa. O executável não tem assinatura digital, então o Windows SmartScreen pode pedir "Mais informações → Executar assim mesmo".
 
 Contas da carga demonstrativa (senha `Senha123` para todas):
 
@@ -104,12 +125,12 @@ Os itens da seção 4.2 do TCC (ordens, impostos, passivos, criptoativos e Open 
 ## Estrutura
 
 ```
-carteira/
+tcc-consolidacao-carteiras/
 ├── app.py                    entrada Streamlit: autenticação, navegação, agendador
-├── mcp_server.py             servidor MCP de consulta para assistentes de IA (somente leitura)
 ├── config.py                 parâmetros, domínios, caminhos e data de referência
-├── requirements.txt          dependências de execução (requirements-dev.txt: testes; requirements-mcp.txt: servidor MCP)
+├── requirements.txt          dependências de execução (requirements-dev.txt: testes)
 ├── Dockerfile, docker-compose.yml, docker-entrypoint.sh, run.sh, run.bat
+├── distribuicao/            instalador para Windows: iniciador, build (construir.ps1), Inno Setup, ícone
 ├── src/
 │   ├── models.py             17 tabelas (MER + importacao_log + token_seguranca)
 │   ├── db.py                 SQLite (WAL, FKs ativas), sessão, migrações leves
@@ -130,9 +151,9 @@ carteira/
 │   ├── calc/                 rentabilidade.py · pe.py · consolidacao.py
 │   └── market/               cambio.py · precos.py · benchmarks.py · seed_sintetico.py
 ├── ui/                       uma tela por módulo, estilo e utilitários
-├── scripts/                  seed_demo · gerar_ddl · gerar_certificado · tarefas_diarias · capturar_telas
-├── tests/                    221 testes (pytest), inclusive telas via AppTest
-└── docs/                     ARQUITETURA.md · apendice_a_ddl.sql · telas/
+├── scripts/                  seed_demo · gerar_certificado · tarefas_diarias
+├── tests/                    261 testes (pytest), inclusive telas via AppTest
+└── docs/guardioes/           checklists de conformidade com a monografia
 ```
 
 ---
@@ -160,39 +181,12 @@ Na RN-004, as chamadas pendentes também contam para o limite do commitment.
 
 ---
 
-## Servidor MCP (consulta por assistente de IA)
-
-`mcp_server.py` publica, pelo Model Context Protocol, quatro ferramentas **somente de leitura**:
-
-| Ferramenta | Retorna |
-|---|---|
-| `listar_carteiras` | carteiras visíveis ao usuário |
-| `posicao_consolidada` | patrimônio, alocação por classe, moeda e país e posições numa data (RF-019) |
-| `rentabilidade` | TWR, MWR, volatilidade, drawdown, Sharpe, benchmarks e TWR por ativo (RF-015/016/018) |
-| `fundos_iliquidos` | commitment, paid-in, NAV, DPI, RVPI, TVPI, MOIC e TIR dos fundos (RF-017) |
-
-- **Números:** vêm de `src/calc`, os mesmos da aplicação. O assistente só os interpreta.
-- **Acesso:** o servidor age em nome do usuário em `CARTEIRA_MCP_EMAIL` e vê apenas as carteiras que ele veria na tela (RN-013).
-- **Auditoria:** cada consulta é registrada como `CONSULTA_MCP` (RF-026).
-- **Privacidade:** não expõe CPF, e-mail nem nome do titular. Os valores da carteira, porém, chegam ao provedor do assistente. Para dados reais, isso exige base legal e consentimento (LGPD, art. 33); na demonstração, os dados são sintéticos.
-
-Instalação: `pip install -r requirements-mcp.txt`. O `.mcp.json` na raiz já registra o servidor para o Claude Code, com o usuário da demonstração. Em outros clientes (Claude Desktop, por exemplo), use o mesmo comando:
-
-```json
-{ "command": "python", "args": ["<caminho>/carteira/mcp_server.py"],
-  "env": { "CARTEIRA_MCP_EMAIL": "investidor@exemplo.com" } }
-```
-
-Testes: `tests/test_mcp_server.py`.
-
----
-
 ## Segurança e privacidade
 
 - **Senhas e login:**
   - senhas com bcrypt (cost 12);
   - após 5 falhas, bloqueio de 15 minutos;
-  - a mensagem de erro não revela se o e-mail existe (RN-001).
+  - a mensagem de credenciais inválidas não revela se o e-mail existe (RN-001); o bloqueio, quando ocorre, é informado.
 - **Sessão:** access token JWT de 15 minutos e refresh token de 7 dias, rotativo e revogado no logout, na troca de senha, na desativação e na exclusão.
 - **Cifragem:**
   - CPF e segredo do 2FA são cifrados com **AES-256-GCM** (chave em `data/.aes256.key` ou em `CARTEIRA_AES_KEY`);

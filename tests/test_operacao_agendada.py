@@ -34,6 +34,21 @@ class TestOperacao:
         assert resumo.ativos == 1 and resumo.falhas == ["VALE3"]
         assert resumo.cambio == {"USD": 0, "EUR": 0, "GBP": 0}
 
+    def test_coleta_yahoo_ignora_fechamento_vazio(self, monkeypatch):
+        """RF-008: pregão com fechamento NaN não vira preço; vale o último válido."""
+        import pandas as pd
+        import yfinance
+
+        def falso_ticker(fechamentos):
+            dias = pd.to_datetime(["2024-01-02", "2024-01-03"])
+            hist = pd.DataFrame({"Close": fechamentos}, index=dias)
+            return lambda simbolo: type("T", (), {"history": lambda self, **k: hist})()
+
+        monkeypatch.setattr(yfinance, "Ticker", falso_ticker([117.35, float("nan")]))
+        assert precos._coletar_yahoo("VOD.L") == (date(2024, 1, 2), 117.35)
+        monkeypatch.setattr(yfinance, "Ticker", falso_ticker([float("nan"), float("nan")]))
+        assert precos._coletar_yahoo("VOD.L") is None
+
     def test_agendador_na_janela_do_rnf006(self):
         assert 19 <= config.COLETA_HORA < 22
 

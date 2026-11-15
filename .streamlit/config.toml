@@ -7,6 +7,8 @@ font = "sans serif"
 
 [server]
 headless = true
+# Atende só na própria máquina. Para abrir na rede, passe --server.address.
+address = "127.0.0.1"
 
 [browser]
 gatherUsageStats = false

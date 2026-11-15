@@ -95,7 +95,13 @@ def registrar_mapeamento(
 
 
 def _coletar_yahoo(simbolo: str, dias: int = 7) -> tuple[date, float] | None:
-    """Último fechamento disponível. Devolve None em qualquer falha."""
+    """
+    Último fechamento válido disponível (RF-008). Devolve None em qualquer falha.
+
+    O Yahoo pode devolver o pregão mais recente com fechamento vazio (NaN),
+    como ocorre em LSE e EURONEXT antes da consolidação do dia. Essas linhas
+    são descartadas, para que nunca se grave um preço inválido.
+    """
     try:
         import yfinance
     except ImportError:
@@ -106,10 +112,13 @@ def _coletar_yahoo(simbolo: str, dias: int = 7) -> tuple[date, float] | None:
         )
         if hist is None or hist.empty:
             return None
-        ultima = hist.iloc[-1]
-        indice = hist.index[-1]
+        fechamentos = hist["Close"].dropna()
+        fechamentos = fechamentos[fechamentos > 0]
+        if fechamentos.empty:
+            return None
+        indice = fechamentos.index[-1]
         dia = indice.date() if hasattr(indice, "date") else date.today()
-        return dia, float(ultima["Close"])
+        return dia, float(fechamentos.iloc[-1])
     except Exception:
         return None
 

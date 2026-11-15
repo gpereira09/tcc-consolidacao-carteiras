@@ -239,6 +239,20 @@ def checar_commitment(commitment: float, comprometido: float, valor: float,
         )
 
 
+def checar_novo_commitment(commitment: float, comprometido: float,
+                           identificador: str = "") -> None:
+    """
+    RN-004 — ao alterar um fundo, o commitment não pode ficar abaixo do que já
+    foi chamado (pago ou pendente). Do contrário o dry powder seria negativo.
+    """
+    if commitment + config.TOLERANCIA_COMMITMENT < comprometido:
+        fundo = f" do fundo {identificador}" if identificador else ""
+        raise ValueError(
+            f"RN-004: o commitment de {numero(commitment)}{fundo} ficaria abaixo do "
+            f"capital já chamado, pago ou pendente ({numero(comprometido)})."
+        )
+
+
 def checar_distribuicao(pago: float, valor: float, identificador: str = "") -> None:
     """RN-005 — distribuição exige capital integralizado."""
     if valor <= 0:

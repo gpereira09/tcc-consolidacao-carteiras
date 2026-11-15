@@ -8,9 +8,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from src import operacoes
 from src.calc import consolidacao, pe
+from src.models import Posicao
 from tests.apoio import cadastrar_acao, criar_usuario, usuario_de
 
 
@@ -61,6 +63,20 @@ class TestLancamentosManuais:
                                           tipo="VENDA", data_transacao=date(2024, 2, 1),
                                           quantidade=101, preco=30)
 
+    def test_venda_retroativa_acima_da_posicao_da_data(self, sessao, carteira):
+        """UC-06: vale a posição que existia na data da venda, não a de hoje."""
+        pos = self._ativo(sessao, carteira)
+        u = usuario_de(sessao, carteira)
+        operacoes.registrar_transacao(sessao, u, pos.id, tipo="COMPRA",
+                                      data_transacao=date(2024, 3, 1), quantidade=100, preco=30)
+        with pytest.raises(ValueError, match="excede"):
+            operacoes.registrar_transacao(sessao, u, pos.id, tipo="VENDA",
+                                          data_transacao=date(2024, 2, 1), quantidade=150, preco=30)
+        assert pos.quantidade == 200
+        operacoes.registrar_transacao(sessao, u, pos.id, tipo="VENDA",
+                                      data_transacao=date(2024, 2, 1), quantidade=100, preco=30)
+        assert pos.quantidade == 100
+
     def test_data_futura(self, sessao, carteira):
         pos = self._ativo(sessao, carteira)
         with pytest.raises(ValueError, match="futura"):
@@ -88,6 +104,31 @@ class TestFundosManuais:
     def test_cadastro(self, sessao, carteira):
         fundo = self._fundo(sessao, carteira)
         assert fundo.identificador_fundo == "FUND-X" and fundo.dry_powder == 1_000_000
+
+    def test_recadastro_mantem_uma_unica_cota(self, sessao, carteira):
+        """Atualizar o fundo (UC-08 FA-01) não soma quantidade à posição."""
+        fundo = self._fundo(sessao, carteira)
+        self._fundo(sessao, carteira)
+        posicao = sessao.scalar(select(Posicao).where(Posicao.ativo_id == fundo.ativo_id))
+        assert posicao.quantidade == 1
+
+    def test_commitment_nao_fica_abaixo_do_ja_chamado(self, sessao, carteira):
+        """RN-004: recadastrar o fundo não pode deixar o dry powder negativo."""
+        fundo = self._fundo(sessao, carteira)
+        operacoes.registrar_evento_pe(sessao, usuario_de(sessao, carteira), fundo,
+                                      tipo="CAPITAL_CALL", data_evento=date(2022, 6, 1),
+                                      valor=400_000, status="PAGO")
+        with pytest.raises(ValueError, match="RN-004"):
+            operacoes.cadastrar_fundo(
+                sessao, usuario_de(sessao, carteira), carteira.id, identificador="fund-x",
+                nome="Fundo X", gestor="Gestora", sub_classe="PRIVATE_EQUITY", moeda="BRL",
+                commitment=300_000, data_inicio=date(2022, 1, 1))
+        assert fundo.commitment == 1_000_000
+        operacoes.cadastrar_fundo(
+            sessao, usuario_de(sessao, carteira), carteira.id, identificador="fund-x",
+            nome="Fundo X", gestor="Gestora", sub_classe="PRIVATE_EQUITY", moeda="BRL",
+            commitment=500_000, data_inicio=date(2022, 1, 1))
+        assert fundo.commitment == 500_000
 
     def test_distribuicao_exige_classificacao(self, sessao, carteira):
         fundo = self._fundo(sessao, carteira)

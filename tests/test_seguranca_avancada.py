@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import select
 
 import config
-from src import administracao, security
+from src import administracao, lgpd, security
 from src.models import AuditLog, Cliente, TokenSeguranca, Usuario
 
 from tests.apoio import criar_usuario, usuario_de
@@ -225,6 +225,16 @@ class TestAdministracao:
             administracao.alterar_usuario(sessao, admin, admin.id, perfil="CLIENTE", ativo=True)
         with pytest.raises(ValueError, match="própria"):
             administracao.excluir_usuario(sessao, admin, admin.id)
+
+    def test_ultimo_admin_nao_exclui_a_propria_conta(self, sessao, admin):
+        """UC-19: a exclusão pela tela de privacidade também respeita a salvaguarda."""
+        with pytest.raises(ValueError, match="administrador ativo"):
+            lgpd.excluir(sessao, admin.id)
+        assert sessao.get(Usuario, admin.id) is not None
+
+        criar_usuario(sessao, "adm2@exemplo.com", "Adm 2", perfil="ADMIN")
+        lgpd.excluir(sessao, admin.id)
+        assert sessao.get(Usuario, admin.id) is None
 
     def test_vinculo_colaborador_governa_visibilidade(self, sessao, admin, carteira):
         colab, _ = administracao.criar_usuario(sessao, admin, email="col@exemplo.com",

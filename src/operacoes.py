@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 import config
 from src import audit, security
 from src.calc import pe
+from src.calc.consolidacao import fundos_da_carteira
 from src.ingest import (
     pais_do_mercado,
     semantica_liquidos,
@@ -150,6 +151,29 @@ def transacoes(sessao: Session, posicao_id: str) -> list[Transacao]:
     ).all())
 
 
+def _exigir_saldo_na_data(sessao: Session, pos: Posicao, data_venda: date,
+                          quantidade: float) -> None:
+    """
+    A venda não pode exceder a posição que existia na data dela (UC-06).
+
+    Refaz o histórico de compras e vendas com a nova venda incluída e recusa
+    se a quantidade ficar negativa em algum dia. Sem isso, uma venda datada
+    antes de uma compra posterior seria aceita pelo saldo de hoje e deixaria
+    a posição negativa no passado, distorcendo a rentabilidade.
+    """
+    movimentos = [(t.data, t.quantidade if t.tipo == "COMPRA" else -t.quantidade)
+                  for t in transacoes(sessao, pos.id) if t.tipo in ("COMPRA", "VENDA")]
+    if not movimentos:
+        return
+    movimentos.append((data_venda, -quantidade))
+    saldo = 0.0
+    for dia, variacao in sorted(movimentos, key=lambda m: (m[0], -m[1])):
+        saldo += variacao
+        if saldo < -1e-9:
+            raise ErroOperacao(
+                f"Venda de {quantidade:g} excede a quantidade em carteira em {dia:%d/%m/%Y}.")
+
+
 def registrar_transacao(
     sessao: Session, usuario: Usuario, posicao_id: str, *,
     tipo: str, data_transacao: date, quantidade: float, preco: float, taxas: float = 0.0,
@@ -189,6 +213,7 @@ def registrar_transacao(
         if quantidade > pos.quantidade + 1e-9:
             raise ErroOperacao(
                 f"Venda de {quantidade:g} excede a quantidade em carteira ({pos.quantidade:g}).")
+        _exigir_saldo_na_data(sessao, pos, data_transacao, quantidade)
         pos.quantidade = round(pos.quantidade - quantidade, 10)
     pos.valor_financeiro = pos.quantidade * pos.preco_medio
 
@@ -222,6 +247,11 @@ def cadastrar_fundo(
     _exigir_nao_futura(data_inicio, "A data de início não pode ser futura.")
     if data_fim_prevista and data_fim_prevista <= data_inicio:
         raise ErroOperacao("A data de encerramento deve ser posterior ao início.")
+
+    for existente in fundos_da_carteira(sessao, carteira_id):
+        if existente.identificador_fundo == identificador:
+            m = pe.calcular(existente, sessao)
+            pe.checar_novo_commitment(commitment, m.paid_in + m.pendente, identificador)
 
     fundo = upsert_fundo(
         sessao, carteira_id, identificador=identificador, nome=nome.strip(),

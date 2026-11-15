@@ -7,6 +7,7 @@ import streamlit as st
 
 from src import relatorio_pdf, relatorio_xlsx
 from src.calc import consolidacao
+from src.market import precos
 from src.models import Cliente
 from ui import comum
 
@@ -18,6 +19,9 @@ def render() -> None:
 
     comum.cabecalho("Relatórios",
                     "Exportação da carteira consolidada em PDF, Excel ou CSV.")
+    simulado = precos.ha_dados_simulados(sessao)
+    if simulado:
+        comum.aviso_dados_sinteticos()
 
     snap = consolidacao.snapshot(sessao, carteira.id, moeda_base=base)
     if not snap.linhas:
@@ -39,7 +43,8 @@ def render() -> None:
     def _pdf() -> bytes:
         cliente = sessao.get(Cliente, carteira.cliente_id)
         return relatorio_pdf.gerar(carteira.nome, base, snap, *_insumos(),
-                                   titular=cliente.nome if cliente else None)
+                                   titular=cliente.nome if cliente else None,
+                                   simulado=simulado)
 
     def _excel() -> bytes:
         return relatorio_xlsx.gerar(carteira.nome, base, snap, *_insumos())

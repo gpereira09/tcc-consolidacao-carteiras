@@ -114,7 +114,7 @@ O crescimento da base de investidores pessoa física no Brasil e a diversificaç
 - Figura 22 — BPMN: Geração e Exportação de Relatórios (UC-16)
 - Figura 23 — BPMN: Atendimento a Solicitação LGPD (UC-17, UC-18)
 - Figura 24 — BPMN: Administração de Usuários e Auditoria (UC-19, UC-20)
-- Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)
+- Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)
 - Figura 26 — Wireframe: Tela de Importação de Carteira
 - Figura 27 — Wireframe: Dashboard Principal
 - Figura 28 — Wireframe: Tela de Fundo PE/VC
@@ -284,7 +284,7 @@ São objetivos específicos deste trabalho:
 - Implementar módulo de cadastro e gestão de ativos líquidos, incluindo ações, fundos de investimento, títulos públicos e privados, tanto no mercado brasileiro quanto internacional;
 - Implementar módulo de investimentos ilíquidos com suporte a Private Equity, Venture Capital e Real Estate, incluindo controle de chamadas de capital, distribuições e atualização periódica de NAV;
 - Desenvolver templates padronizados em XLSX como mecanismo principal de ingestão de dados, com validação automática estrutural e semântica;
-- Integrar APIs externas (Yahoo Finance, CVM, Tesouro Direto e BCB) para enriquecimento automático de preços de mercado, aplicável aos ativos que possuem ticker listado;
+- Integrar APIs externas (Yahoo Finance e PTAX do BCB) para enriquecimento automático de preços de mercado, aplicável aos ativos que possuem ticker listado, e de taxas de câmbio;
 - Desenvolver mecanismo de consolidação multi-moeda com conversão automática entre BRL, USD e EUR, utilizando taxas de câmbio históricas para cálculos retroativos;
 - Implementar motor de cálculo de rentabilidade utilizando as metodologias TWR (Time-Weighted Return) e MWR (Money-Weighted Return), conforme apropriado para cada classe de ativo;
 - Construir interface interativa com dashboards de visualização, incluindo alocação por classe, setor e geografia, evolução patrimonial e comparação com benchmarks;
@@ -538,7 +538,7 @@ Cabe destacar uma limitação de interoperabilidade: o sistema não importa qual
 
 Essa rigidez constitui uma decisão de projeto deliberada: a padronização da entrada favorece o desacoplamento em relação a sistemas de terceiros, o rigor dos cálculos e a privacidade do usuário. Arquivos fora do padrão são rejeitados pela camada de validação, com mensagens orientando a correção.
 
-As fontes externas (Yahoo Finance, Portal de Dados Abertos da CVM, API do Tesouro Direto e BCB) são utilizadas como mecanismo complementar para enriquecimento dos preços de mercado dos ativos que possuem ticker listado. Ou seja, para cada posição informada pelo cliente via template, o sistema verifica se o ativo possui ticker listado e, em caso afirmativo, busca automaticamente o preço de tela atual e o persiste na tabela de preços, vinculando-o à posição.
+As fontes externas (Yahoo Finance, para cotações, e PTAX do Banco Central, para taxas de câmbio) são utilizadas como mecanismo complementar para enriquecimento dos preços de mercado dos ativos que possuem ticker listado. Ou seja, para cada posição informada pelo cliente via template, o sistema verifica se o ativo possui ticker listado e, em caso afirmativo, busca automaticamente o preço de tela atual e o persiste na tabela de preços, vinculando-o à posição.
 
 Para ativos sem ticker listado (notadamente PE, VC e Real Estate), o preço é integralmente derivado do template, alimentado pelo preço médio e pelo valor financeiro informados pelo cliente.
 
@@ -546,7 +546,7 @@ Para ativos sem ticker listado (notadamente PE, VC e Real Estate), o preço é i
 
 Para ações listadas na B3 e em bolsas internacionais, a principal fonte de enriquecimento é a API do Yahoo Finance, acessível via biblioteca Python `yfinance` (YAHOO FINANCE, 2026). Esta API fornece cotações históricas, preços de abertura e fechamento, volume negociado e informações corporativas. A identificação dos ativos é feita por meio do ticker (por exemplo, `PETR4.SA` para ações brasileiras e `AAPL` para ações americanas).
 
-Os dados de fundos de investimento registrados na CVM são disponibilizados através do Portal de Dados Abertos da CVM (CVM, 2026). As informações incluem valor da cota diária, patrimônio líquido e composição da carteira, identificadas pelo CNPJ do fundo. Para títulos públicos federais, o Tesouro Nacional disponibiliza dados de preços e taxas em arquivos CSV atualizados diariamente (TESOURO NACIONAL, 2026).
+Para fundos de investimento e títulos públicos federais também existem fontes públicas oficiais. O Portal de Dados Abertos da CVM (CVM, 2026) divulga o valor da cota diária, o patrimônio líquido e a composição da carteira de cada fundo, identificado pelo CNPJ, e o Tesouro Nacional disponibiliza preços e taxas em arquivos CSV atualizados diariamente (TESOURO NACIONAL, 2026). Essas duas fontes não são integradas nesta versão: quando a cotação de um ativo não é encontrada no Yahoo Finance, permanece valendo o preço informado pelo cliente no template. A integração com ambas fica registrada como trabalho futuro no capítulo de conclusão.
 
 #### Ativos sem ticker listado (ilíquidos)
 
@@ -578,7 +578,7 @@ A conversão é aplicada de forma retroativa, utilizando a taxa de câmbio da da
 
 #### Tratamento de Lacunas de Dados
 
-Lacunas nos dados históricos — causadas por feriados, suspensões de negociação ou indisponibilidade de fonte — são tratadas por meio de técnicas de preenchimento. O método *forward fill* utiliza o último preço conhecido para preencher dias sem cotação, sendo apropriado para ações e fundos. A interpolação linear estima valores intermediários entre dois pontos conhecidos e é utilizada para ativos ilíquidos com atualizações trimestrais de NAV.
+Lacunas nos dados históricos — causadas por feriados, suspensões de negociação ou indisponibilidade de fonte — são tratadas por meio de técnicas de preenchimento. O método *forward fill* utiliza o último preço conhecido para preencher dias sem cotação, sendo apropriado para ações e fundos. Para ativos ilíquidos com atualizações trimestrais de NAV, o sistema mantém o último NAV informado e o ajusta pelos fluxos posteriores (chamadas pagas e distribuições), sem interpolar valores entre duas avaliações.
 
 Para o cálculo de dias úteis, é utilizada a biblioteca pandas com o módulo BusinessDay (`BDay`), que permite o tratamento adequado de feriados e dias não úteis no calendário financeiro brasileiro (PANDAS DEVELOPMENT TEAM, 2026).
 
@@ -762,17 +762,17 @@ A Lei nº 13.709/2018 (LGPD) estabelece regras para o tratamento de dados pessoa
 
 O sistema utilizará autenticação baseada em JWT (JSON Web Tokens) com refresh tokens para manter sessões seguras sem exigir login frequente. O controle de acesso será baseado em papéis (Role-Based Access Control — RBAC), com três perfis previstos: Administrador (acesso total ao sistema), Colaborador (gestor familiar autorizado pelo titular, com acesso às carteiras a ele vinculadas e sem acesso a configurações) e Cliente (acesso apenas aos próprios dados).
 
-Dados sensíveis (valores financeiros, identificadores pessoais) serão criptografados em repouso utilizando AES-256 por meio da biblioteca `cryptography` (Fernet) do Python, e todas as comunicações utilizarão HTTPS/TLS. Será implementado *rate limiting* para limitar requisições por minuto/hora por usuário, prevenindo abuso.
+Os identificadores pessoais (CPF) e o segredo da autenticação em dois fatores são criptografados em repouso com AES-256 em modo GCM, por meio da biblioteca `cryptography` do Python. Os valores financeiros não são cifrados campo a campo: permanecem no banco de dados local, na máquina do próprio usuário. Na versão instalada, o servidor atende apenas a conexões da própria máquina (127.0.0.1), de modo que os dados não trafegam pela rede; nas execuções via Docker ou por script, a aplicação pode ser servida em HTTPS/TLS com certificado local. Será implementado *rate limiting* para limitar requisições por minuto/hora por usuário, prevenindo abuso.
 
 Chaves de API e credenciais de acesso a serviços externos nunca serão armazenadas em código-fonte ou arquivos de configuração versionados — serão utilizadas variáveis de ambiente.
 
 Quanto às credenciais, as senhas de acesso nunca são armazenadas em texto puro: são submetidas à função de derivação bcrypt (com *cost factor* 12), que aplica salt único por usuário, persistindo-se apenas o hash resultante (campo `senha_hash`). A verificação de login compara apenas os hashes, sem que a senha original trafegue ou seja recuperável.
 
-Os identificadores pessoais (CPF), além de criptografados em repouso, são pseudonimizados (mascarados) na exibição e em relatórios. Todas as ações relevantes sobre os dados são registradas em uma trilha de auditoria (tabela `audit_log`: usuário, ação, entidade, timestamp e IP de origem), assegurando rastreabilidade e integridade das informações.
+Os identificadores pessoais (CPF), além de criptografados em repouso, são pseudonimizados (mascarados) na exibição e em relatórios. Todas as ações relevantes sobre os dados são registradas em uma trilha de auditoria (tabela `audit_log`: usuário, ação, entidade e timestamp), assegurando rastreabilidade e integridade das informações.
 
 No plano da conformidade, a arquitetura adota a privacidade desde a concepção (*privacy by design*): no modelo local, os dados permanecem no ambiente do próprio usuário, minimizando a superfície de exposição.
 
-O consentimento é coletado e registrado com timestamp e IP, e o sistema contempla os direitos do titular previstos na Lei nº 13.709/2018 (LGPD) — acesso, correção, eliminação e portabilidade —, observando os princípios de finalidade, minimização e segurança (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
+O consentimento é coletado e registrado com data e hora, e o sistema contempla os direitos do titular previstos na Lei nº 13.709/2018 (LGPD) — acesso, correção, eliminação e portabilidade —, observando os princípios de finalidade, minimização e segurança (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
 
 O acesso a cada recurso é mediado pelo controle baseado em papéis (RBAC), de modo que cada usuário acesse apenas o patrimônio que lhe é permitido (RN-013). Os registros de auditoria — que abrangem autenticação, importação, exportação e exclusão de dados — não expõem valores sensíveis e apoiam a rastreabilidade exigida pela LGPD e a apuração de eventuais incidentes (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
 
@@ -903,7 +903,7 @@ Foram identificados riscos técnicos e de projeto que podem impactar o desenvolv
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
 | API da B3 com acesso restrito ou pago | Alta | Alto | Usar Yahoo Finance como fallback para ativos B3 listados |
-| CVM sem endpoint REST estruturado | Média | Médio | Usar dados abertos do Portal de Dados CVM (CSV) |
+| CVM sem endpoint REST estruturado | Média | Médio | Nesta versão, manter para os fundos o valor informado no template; a leitura dos dados abertos do Portal de Dados CVM (CSV) fica como trabalho futuro |
 | Complexidade do modelo de dados ilíquidos | Média | Alto | Simplificar para NAV manual com histórico auditável via template |
 | Scope creep (expansão não planejada) | Alta | Alto | Controle rígido do escopo definido neste documento |
 | Dados offline/inconsistentes de cotações | Baixa | Médio | Cache local em SQLite e flag de dado não atualizado na UI |
@@ -928,17 +928,21 @@ O Quadro 17 apresenta a stack escolhida.
 | Camada | Tecnologia | Justificativa |
 |---|---|---|
 | Frontend / UI | Streamlit | Prototipação rápida, nativo para dashboards de dados, integração Python |
-| Backend / Lógica | Python 3.11+ | Ecossistema robusto para finanças (pandas, numpy, scipy) |
+| Backend / Lógica | Python 3.11+ | Ecossistema robusto para finanças e dados (pandas) |
 | Banco de Dados | SQLite 3.40+ | Banco em arquivo único, sem servidor, ideal para deploy local; suporte a transações ACID; WAL mode |
-| ORM | SQLAlchemy 2.0 | Abstração do banco com suporte a migrações (Alembic) |
+| ORM | SQLAlchemy 2.0 | Abstração do banco; a criação do schema e as migrações leves são feitas pela própria aplicação |
 | Templates XLSX | openpyxl | Leitura e geração de templates padronizados (.xlsx) |
-| Coleta — Global | yfinance | Ativos globais: ações, ETFs, índices |
-| Coleta — Brasil | Requests + BeautifulSoup | Scraping estruturado de CVM e fontes brasileiras |
-| Coleta — Câmbio | API BCB | Taxas de câmbio oficiais do Banco Central |
+| Gráficos | Plotly | Gráficos interativos do dashboard |
+| Relatórios | ReportLab e openpyxl | Geração dos relatórios em PDF e em Excel |
+| Coleta — Cotações | yfinance | Ações, ETFs e demais ativos listados, no Brasil e no exterior |
+| Coleta — Câmbio | Requests + API PTAX do BCB | Taxas de câmbio oficiais do Banco Central, obtidas por requisição HTTP |
 | Agendamento | APScheduler | Coleta automática de preços ao fim do pregão (ativos listados) |
-| Containerização | Docker (opcional) | Padronização do ambiente para deploy reproduzível |
+| Distribuição | Instalador para Windows (Inno Setup, com Python embutido) | Forma principal de entrega: instalação por usuário, sem privilégios de administrador e sem exigir Python na máquina |
+| Containerização | Docker (opcional) | Alternativa de execução em ambiente padronizado e reproduzível |
 | Autenticação | JWT (PyJWT) | Tokens seguros para sessões de usuário |
-| Criptografia | cryptography (Fernet) | Criptografia AES-256 de campos sensíveis em repouso |
+| Senhas | bcrypt | Hash das senhas com salt único por usuário (cost factor 12) |
+| Segundo fator | TOTP, com QR code gerado pela biblioteca segno | Autenticação em dois fatores opcional no login |
+| Criptografia | cryptography (AES-256-GCM) | Cifragem dos campos sensíveis em repouso (CPF e segredo do segundo fator) |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -954,7 +958,7 @@ Mais do que uma linguagem de propósito geral, o Python foi adotado por seu ecos
 
 A biblioteca OpenPyXL responde diretamente pela estratégia de ingestão por planilha. Ela permite ler e gravar arquivos .xlsx sem depender da instalação do Microsoft Excel, viabilizando tanto a geração dos templates padronizados — com cabeçalhos, listas de validação e múltiplas abas (Quadros 44 a 46) — quanto a leitura estruturada dos dados preenchidos pelo investidor.
 
-Para o enriquecimento automático de preços, a biblioteca yfinance oferece acesso programático a cotações de ativos líquidos; já as bibliotecas Requests e BeautifulSoup permitem a coleta estruturada de dados em fontes públicas oficiais, como a CVM, por meio de requisições HTTP e análise de páginas. A opção por fontes públicas e gratuitas é coerente com o caráter acadêmico do trabalho.
+Para o enriquecimento automático de preços, a biblioteca yfinance oferece acesso programático a cotações de ativos líquidos; já a biblioteca Requests é usada para consultar a PTAX na API de dados abertos do Banco Central, por meio de requisições HTTP. A opção por fontes públicas e gratuitas é coerente com o caráter acadêmico do trabalho.
 
 A camada de apresentação foi construída com Streamlit por se tratar de uma aplicação centrada em dados (dashboards, tabelas e gráficos consolidados), e não de uma interface ricamente interativa. O Streamlit permite desenvolver aplicações de dados diretamente em Python, com integração imediata à camada de cálculo, dispensando uma stack de frontend separada, uma camada de API REST e um processo de build.
 
@@ -969,9 +973,11 @@ A arquitetura do sistema é organizada em três grandes camadas lógicas, alinha
 - **Camada de Apresentação:** telas Streamlit para dashboard, importação, cadastros, relatórios e privacidade (LGPD);
 - **Camada de Aplicação (Serviços):** controllers e serviços de domínio (`ImportController`, `DashboardController`, `PEController`, `AuthService`, `PrecoService`, `CambioService`, `RentabilidadeService`, `MetricasPEService`, `AlocacaoService`);
 - **Camada de Persistência:** repositórios SQLAlchemy ORM sobre arquivo SQLite local (`carteira.db`) em volume persistente;
-- **Camada de Integração:** clients HTTP para APIs externas (Yahoo Finance, CVM, BCB, Tesouro Direto), com cache local e tratamento de falhas (retry/backoff/circuit-breaker).
+- **Camada de Integração:** clients HTTP para APIs externas (Yahoo Finance e PTAX do BCB), com cache local e manutenção do último valor conhecido em caso de falha.
 
-A aplicação pode ser empacotada via Docker para garantir portabilidade, embora o uso de SQLite permita também execução nativa sem contêineres. Toda a aplicação roda em ambiente single-host, com o arquivo do banco de dados e os uploads de templates armazenados em volumes persistentes.
+A forma principal de entrega é um instalador para Windows, que instala a aplicação por usuário, sem privilégios de administrador, com o interpretador Python e as bibliotecas já embutidos. O atalho criado pelo instalador inicia um servidor local, acessível apenas pela própria máquina (127.0.0.1), e abre o sistema no navegador. O banco de dados, as chaves e os backups ficam em uma pasta de dados do usuário, separada da pasta do programa, de modo que atualizar a aplicação não os altera.
+
+Como alternativas, a aplicação pode ser executada via Docker ou diretamente com Python, o que o uso de SQLite permite sem infraestrutura adicional. Em qualquer dessas formas, toda a aplicação roda em ambiente single-host, com o arquivo do banco de dados e os uploads de templates em armazenamento persistente.
 
 Os diagramas de componentes e de implantação que ilustram esta arquitetura são apresentados no capítulo 6 (Figuras 13 e 14).
 
@@ -1051,12 +1057,12 @@ Os requisitos não funcionais (RNF) descrevem características de qualidade do s
 | RNF-001 | Compatibilidade | O sistema deve ser compatível com Chrome, Firefox, Edge e Safari (duas últimas versões). |
 | RNF-002 | Usabilidade | O sistema deve ser responsivo, utilizável em telas de desktop (≥ 1280 px) e tablets (≥ 768 px). |
 | RNF-003 | Eficiência de desempenho | O dashboard deve carregar em menos de 3 segundos para carteiras com até 100 posições. |
-| RNF-004 | Segurança (confidencialidade) | Dados sensíveis devem ser criptografados em repouso com AES-256 (cryptography/Fernet). |
-| RNF-005 | Segurança (confidencialidade e integridade) | Todas as comunicações devem utilizar HTTPS/TLS 1.2 ou superior. |
+| RNF-004 | Segurança (confidencialidade) | Dados sensíveis devem ser criptografados em repouso com AES-256 (modo GCM, biblioteca cryptography). |
+| RNF-005 | Segurança (confidencialidade e integridade) | A versão instalada deve atender apenas a conexões da própria máquina (127.0.0.1); quando a aplicação for exposta em rede, as comunicações devem utilizar HTTPS/TLS 1.2 ou superior. |
 | RNF-006 | Confiabilidade (disponibilidade) | A coleta automática de preços deve executar diariamente entre 19h e 22h (horário de Brasília). |
 | RNF-007 | Confiabilidade (recuperabilidade) | O sistema deve reter histórico de preços por no mínimo 5 anos. |
 | RNF-008 | Confiabilidade (tolerância a falhas) | Backups automáticos do arquivo SQLite devem ser realizados diariamente. |
-| RNF-009 | Portabilidade | O sistema deve ser implantável via Docker e também em modo standalone com Python. |
+| RNF-009 | Portabilidade | O sistema deve ser distribuído como instalador para Windows, sem exigir Python previamente instalado, e deve ser implantável também via Docker e em modo standalone com Python. |
 | RNF-010 | Manutenibilidade (analisabilidade) | Endpoints e módulos internos devem ser documentados (docstrings + arquitetura). |
 | RNF-011 | Confiabilidade (disponibilidade) | O sistema deve aplicar rate limiting (60 req/min por usuário) para prevenir abuso. |
 | RNF-012 | Conformidade | O sistema deve atender aos requisitos da Lei nº 13.709/2018 (LGPD). |
@@ -1074,17 +1080,17 @@ As regras de negócio (RN) representam invariantes e validações de domínio qu
 | RN-001 | E-mail é identificador único do usuário; senha deve atender política mínima (≥ 8 caracteres, com letras e números). Após 5 tentativas falhas, a conta é bloqueada por 15 minutos. |
 | RN-002 | Toda importação de template XLSX deve passar por duas etapas de validação: estrutural (colunas obrigatórias, tipos) e semântica (valores válidos, datas coerentes, regras de domínio). |
 | RN-003 | Em caso de erro estrutural no template, a importação é abortada integralmente. Em caso de erro semântico em linhas específicas, o cliente pode optar por importar apenas as linhas válidas. |
-| RN-004 | Em fundos de PE/VC, a soma das chamadas de capital com status 'pago' não pode exceder o commitment total do investidor naquele fundo (dry_powder ≥ 0). |
+| RN-004 | Em fundos de PE/VC, a soma das chamadas de capital com status 'pago' ou 'pendente' não pode exceder o commitment total do investidor naquele fundo (dry_powder ≥ 0). |
 | RN-005 | Toda distribuição PE/VC deve estar vinculada a um fundo previamente cadastrado com paid_in_capital > 0. |
 | RN-006 | O atributo possui_ticker_listado do ATIVO determina se o sistema busca preço de mercado via API externa. Para ativos com possui_ticker_listado=true, o preço de tela é persistido em PRECO_HISTORICO e usado em marcação a mercado. |
 | RN-007 | Para ativos sem ticker listado, o valor financeiro da posição é calculado pelo preço médio informado no template multiplicado pela quantidade, ou pelo valor financeiro diretamente informado quando aplicável. |
 | RN-008 | Toda posição importada deve ser associada a uma carteira do cliente autenticado. Não é permitido importar posições para carteiras de outros usuários. |
 | RN-009 | A conversão de moeda utiliza a taxa de câmbio histórica da data de referência da posição. Em caso de ausência de taxa para a data, aplica-se forward fill (última taxa conhecida anterior). |
-| RN-010 | O cálculo de TWR considera subperíodos delimitados por fluxos de caixa (aportes/resgates), aplicando produto geométrico dos retornos. |
+| RN-010 | O cálculo de TWR considera subperíodos mensais: o retorno de cada um é apurado pelo método de Dietz modificado, que pondera os fluxos de caixa (aportes/resgates) pelo tempo em que ficaram investidos, e os retornos são encadeados por produto geométrico. |
 | RN-011 | O cálculo de MWR/IRR é realizado por método iterativo (Newton-Raphson) sobre os fluxos de caixa da carteira; valor inicial sugerido: 0,10 (10% a.a.). |
 | RN-012 | Métricas PE/VC são recalculadas automaticamente a cada inserção de evento (capital call, distribuição ou NAV update). |
 | RN-013 | O perfil ADMIN tem acesso a todas as carteiras. COLABORADOR tem acesso somente às carteiras dos clientes vinculados a ele. CLIENTE tem acesso apenas à própria carteira. |
-| RN-014 | A solicitação de portabilidade LGPD exige reautenticação. O arquivo gerado tem link de uso único com validade de 24 horas. |
+| RN-014 | A solicitação de portabilidade LGPD exige reautenticação. O arquivo gerado é protegido por um link de uso único com validade de 24 horas; a tela o resgata no momento da solicitação, de modo que o arquivo é entregue uma única vez e não permanece armazenado no servidor. |
 | RN-015 | A exclusão LGPD remove dados pessoais identificáveis. Dados retidos por obrigação legal (ex.: logs de auditoria) são anonimizados (substituição do usuario_id pela constante 'EXCLUIDO_LGPD'). |
 
 *Fonte: Elaborado pelos autores (2026).*
@@ -1102,7 +1108,7 @@ A matriz de rastreabilidade (Quadro 22) permite verificar a cobertura entre requ
 | RF-003 | UC-03 | USUARIO | Tela de Recuperação de Senha |
 | RF-004 | UC-04 | POSICAO, TRANSACAO, ATIVO, ASSET_MAPPING, PRECO_HISTORICO | Tela de Importação |
 | RF-005 | UC-04 | POSICAO, ATIVO_ILIQUIDO, EVENTO_PE | Tela de Importação |
-| RF-006 | UC-04 | POSICAO, ATIVO_IMOVEL | Tela de Importação |
+| RF-006 | UC-04 | POSICAO, ATIVO_IMOVEL | Tela de Importação; Tela de Imóveis (consulta e reavaliação) |
 | RF-007 | UC-05 | POSICAO, ATIVO | Tela de Cadastro Manual |
 | RF-008 | UC-07 | PRECO_HISTORICO, ASSET_MAPPING | Serviço PrecoService (background) |
 | RF-009 | UC-06 | TRANSACAO | Tela de Transações |
@@ -1161,7 +1167,7 @@ Os atores do sistema são definidos como:
 - **Cliente (Investidor):** usuário final do sistema, responsável por importar e visualizar sua própria carteira;
 - **Colaborador (Gestor Familiar):** membro do núcleo familiar autorizado pelo titular a visualizar e auxiliar na gestão da carteira do próprio investidor; corresponde ao perfil COLABORADOR do controle de acesso (RN-013);
 - **Administrador:** responsável pela gestão de usuários, configurações globais e auditoria;
-- **API Externa (ator de sistema):** Yahoo Finance, Portal CVM, BCB e Tesouro Direto — consumidos pelo sistema para enriquecimento de preços e taxas de câmbio.
+- **API Externa (ator de sistema):** Yahoo Finance e PTAX do BCB — consumidos pelo sistema para enriquecimento de preços e taxas de câmbio.
 
 ## 6.2 ESPECIFICAÇÃO DETALHADA DOS CASOS DE USO
 
@@ -1195,7 +1201,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Disparador | Usuário acessa a aplicação. |
 | Fluxo principal | 1. Sistema exibe formulário com campos: e-mail e senha.<br>2. Usuário submete.<br>3. Sistema verifica se a conta está bloqueada por tentativas falhas (RN-001).<br>4. Sistema valida as credenciais comparando a senha com o hash bcrypt armazenado.<br>5. Sistema zera o contador de tentativas, registra o último acesso e emite token JWT.<br>6. Sistema registra LOGIN em AUDIT_LOG.<br>7. Sistema carrega as carteiras visíveis ao perfil (RN-013) e redireciona ao dashboard. |
 | Fluxos alternativos | FA-01 (Esqueci minha senha): usuário aciona UC-03. |
-| Exceções | EX-01 (Credenciais inválidas): sistema exibe mensagem genérica, incrementa o contador e informa as tentativas restantes.<br>EX-02 (Quinta tentativa falha): sistema bloqueia a conta por 15 minutos e registra LOGIN_FALHA (RN-001).<br>EX-03 (Conta bloqueada ou desativada): sistema recusa o acesso mesmo com a senha correta e informa o tempo restante de bloqueio. |
+| Exceções | EX-01 (Credenciais inválidas): sistema exibe mensagem genérica e incrementa o contador, sem informar as tentativas restantes.<br>EX-02 (Quinta tentativa falha): sistema bloqueia a conta por 15 minutos e registra LOGIN_FALHA (RN-001).<br>EX-03 (Conta bloqueada ou desativada): sistema recusa o acesso mesmo com a senha correta e informa o tempo restante de bloqueio. |
 | Pós-condição | Usuário autenticado com token JWT válido; carteira inicial selecionada. |
 | RN relacionadas | RN-001, RN-013 |
 
@@ -1216,7 +1222,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Token expirado ou já utilizado): sistema informa que o link não é mais válido e oferece nova solicitação.<br>EX-02 (Nova senha fora da política): sistema exibe as regras e mantém a senha anterior.<br>EX-03 (Falha no envio do e-mail): sistema registra a falha e orienta o usuário a tentar novamente mais tarde. |
 | Pós-condição | Senha redefinida; token consumido; conta desbloqueada. |
 | RN relacionadas | RN-001 |
-| Observação | Prioridade Should (RF-003). Não implementado no MVP por depender de serviço de envio de e-mail. |
+| Observação | Prioridade Should (RF-003). Quando não há servidor de e-mail configurado, a mensagem com o link é gravada em uma caixa de saída local, o que mantém o fluxo completo sem depender de serviço externo. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1253,7 +1259,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Campo obrigatório ausente ou fora do domínio): sistema destaca o campo e impede a submissão.<br>EX-02 (Moeda incoerente com o mercado): sistema informa a moeda esperada (por exemplo, B3 = BRL). |
 | Pós-condição | Posição criada ou consolidada; preço de referência disponível. |
 | RN relacionadas | RN-006, RN-007, RN-008 |
-| Observação | Prioridade Should (RF-007). Alternativa ao template; não implementado no MVP. |
+| Observação | Prioridade Should (RF-007). Alternativa ao template, disponível na tela de lançamentos manuais. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1284,7 +1290,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Atores secundários | API Externa (Yahoo Finance) |
 | Pré-condições | Ativo com possui_ticker_listado = verdadeiro (RN-006). |
 | Disparador | Inclusão por outro caso de uso, ou acionamento de "Atualizar cotações" no dashboard. |
-| Fluxo principal | 1. Sistema verifica o cache local em PRECO_HISTORICO; se houver preço de fonte externa dentro da janela de validade, devolve-o sem consultar a API.<br>2. Sistema converte o ticker canônico no símbolo da fonte externa via ASSET_MAPPING ou pela regra de sufixo por mercado.<br>3. Sistema consulta a API com limite de tempo e tentativas.<br>4. Sistema persiste o fechamento mais recente em PRECO_HISTORICO com fonte identificada.<br>5. Sistema devolve preço e data ao caso de uso chamador. |
+| Fluxo principal | 1. Sistema verifica o cache local em PRECO_HISTORICO; se houver preço de fonte externa dentro da janela de validade, devolve-o sem consultar a API.<br>2. Sistema converte o ticker canônico no símbolo da fonte externa via ASSET_MAPPING ou pela regra de sufixo por mercado.<br>3. Sistema consulta a API uma única vez; qualquer falha é tratada pela exceção EX-01.<br>4. Sistema persiste o fechamento mais recente em PRECO_HISTORICO com fonte identificada.<br>5. Sistema devolve preço e data ao caso de uso chamador. |
 | Fluxos alternativos | FA-01 (Cache válido): preço devolvido do cache, sem chamada externa. |
 | Exceções | EX-01 (API indisponível, limite excedido ou símbolo não encontrado): sistema mantém o último preço conhecido, sinaliza a posição como desatualizada e prossegue sem interromper o chamador.<br>EX-02 (Ativo não listado): sistema não consulta a API e aplica RN-007. |
 | Pós-condição | PRECO_HISTORICO atualizado ou último preço conhecido preservado, com indicação da fonte. |
@@ -1318,7 +1324,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Ator principal | Cliente, Colaborador |
 | Pré-condições | Fundo PE/VC previamente cadastrado (UC-08). Commitment definido. |
 | Disparador | Usuário acessa a tela do fundo e escolhe "Capital call" em "Registrar evento". |
-| Fluxo principal | 1. Sistema exibe formulário com campos: data, valor, status (PENDENTE ou PAGO) e observação.<br>2. Usuário preenche e submete.<br>3. Sistema valida valor positivo e data não anterior ao início do fundo.<br>4. Se status = PAGO, sistema verifica que a soma das chamadas pagas mais o valor não excede o commitment (RN-004).<br>5. Sistema persiste em EVENTO_PE com tipo = CAPITAL_CALL.<br>6. Sistema recalcula paid_in_capital, dry_powder e NAV em ATIVO_ILIQUIDO e reflete o NAV na POSICAO (RN-012).<br>7. Sistema recalcula DPI, RVPI, TVPI e IRR (UC-15).<br>8. Sistema registra REGISTRAR_EVENTO_PE em AUDIT_LOG e atualiza a tela com o evento e as métricas. |
+| Fluxo principal | 1. Sistema exibe formulário com campos: data, valor, status (PENDENTE ou PAGO) e observação.<br>2. Usuário preenche e submete.<br>3. Sistema valida valor positivo e data não anterior ao início do fundo.<br>4. Sistema verifica que a soma das chamadas pagas e pendentes, mais o valor informado, não excede o commitment (RN-004).<br>5. Sistema persiste em EVENTO_PE com tipo = CAPITAL_CALL.<br>6. Sistema recalcula paid_in_capital, dry_powder e NAV em ATIVO_ILIQUIDO e reflete o NAV na POSICAO (RN-012).<br>7. Sistema recalcula DPI, RVPI, TVPI e IRR (UC-15).<br>8. Sistema registra REGISTRAR_EVENTO_PE em AUDIT_LOG e atualiza a tela com o evento e as métricas. |
 | Fluxos alternativos | FA-01 (Status = PENDENTE): paid_in_capital não é alterado; o dry powder é reduzido; o evento aguarda confirmação posterior. Datas futuras são aceitas apenas neste status. |
 | Exceções | EX-01 (Valor excede o commitment): sistema rejeita e informa o valor ainda disponível para chamada.<br>EX-02 (Data anterior ao início do fundo): sistema rejeita e informa a data de início. |
 | Pós-condição | Evento registrado; métricas PE/VC atualizadas; ação auditada. |
@@ -1444,7 +1450,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Carteira vazia): sistema informa que não há posições para exportar. |
 | Pós-condição | Arquivo gerado e entregue ao usuário. |
 | RN relacionadas | RN-013 |
-| Observação | Prioridade Could (RF-023). O formato PDF permanece como evolução. |
+| Observação | Prioridade Could (RF-023). O relatório também é oferecido em PDF. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1457,7 +1463,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Ator principal | Cliente (titular dos dados) |
 | Pré-condições | Usuário autenticado. |
 | Disparador | Usuário acessa "Privacidade e dados" e escolhe "Exportar meus dados". |
-| Fluxo principal | 1. Sistema solicita reautenticação com senha (e 2FA, se habilitado) (RN-014).<br>2. Usuário escolhe o formato: JSON (dossiê completo) ou CSV (pacote com planilhas separadas).<br>3. Sistema coleta todos os dados associados ao titular — cadastro, carteiras, posições, transações, fundos e eventos, imóveis, importações e trilha de auditoria — por junções entre as tabelas.<br>4. Sistema decifra o CPF para entrega em claro ao titular.<br>5. Sistema gera o arquivo e emite link de download de uso único com validade de 24 horas (RN-014).<br>6. Sistema registra EXPORTAR_LGPD em AUDIT_LOG.<br>7. Usuário baixa o arquivo; o link é consumido. |
+| Fluxo principal | 1. Sistema solicita reautenticação com senha (e 2FA, se habilitado) (RN-014).<br>2. Usuário escolhe o formato: JSON (dossiê completo) ou CSV (pacote com planilhas separadas).<br>3. Sistema coleta todos os dados associados ao titular — cadastro, carteiras, posições, transações, fundos e eventos, imóveis, importações e trilha de auditoria — por junções entre as tabelas.<br>4. Sistema decifra o CPF para entrega em claro ao titular.<br>5. Sistema gera o arquivo, protegido por link de uso único com validade de 24 horas, resgata-o em seguida para download imediato e o remove do servidor (RN-014).<br>6. Sistema registra EXPORTAR_LGPD em AUDIT_LOG.<br>7. Usuário baixa o arquivo; o link é consumido. |
 | Fluxos alternativos | FA-01 (Usuário cancela antes da geração): sistema descarta a solicitação sem registrar em AUDIT_LOG. |
 | Exceções | EX-01 (Reautenticação falha): sistema cancela a solicitação.<br>EX-02 (Link expirado ou já utilizado): sistema recusa o download e orienta nova solicitação. |
 | Pós-condição | Arquivo gerado e entregue; solicitação registrada; link consumido. |
@@ -1582,7 +1588,7 @@ O diagrama de componentes apresenta a organização interna do software em pacot
 
 ## 6.7 DIAGRAMA DE IMPLANTAÇÃO
 
-O diagrama de implantação descreve o ambiente físico de execução do sistema. O modelo adotado é single-host: toda a aplicação roda em um único servidor (que pode ser uma VPS, um servidor on-premises ou mesmo a máquina do próprio usuário), com o banco SQLite em volume persistente. As únicas dependências externas são as APIs de mercado utilizadas para enriquecimento de preço de tela. A Figura 14 ilustra essa topologia.
+O diagrama de implantação descreve o ambiente físico de execução do sistema. O modelo adotado é single-host: toda a aplicação roda em um único servidor (que pode ser uma VPS, um servidor on-premises ou mesmo a máquina do próprio usuário), com o banco SQLite em volume persistente. As únicas dependências externas são as APIs de mercado utilizadas para enriquecimento de preço de tela. Na entrega desta versão, feita pelo instalador para Windows (seção 5.2), esse host é a máquina do próprio usuário, e o servidor atende somente a conexões locais. A Figura 14 ilustra essa topologia.
 
 **Figura 14 — Diagrama de Implantação**
 
@@ -1664,7 +1670,7 @@ O processo de onboarding cobre desde o acesso à página de cadastro até a disp
 
 ## 8.2 AUTENTICAÇÃO E CONTROLE DE ACESSO
 
-O processo de autenticação integra o login (UC-02), a recuperação de senha (UC-03) e o controle de tentativas da RN-001. A verificação de bloqueio antecede a comparação do hash, de modo que a senha correta não destrava uma conta bloqueada. O ramo inferior da raia Sistema modela o contador de falhas: a quinta tentativa bloqueia a conta por quinze minutos; as anteriores devolvem o controle ao usuário com a informação de tentativas restantes. A mensagem de erro é genérica, para não revelar a existência do e-mail. Após o sucesso, o sistema carrega apenas as carteiras visíveis ao perfil (RN-013).
+O processo de autenticação integra o login (UC-02), a recuperação de senha (UC-03) e o controle de tentativas da RN-001. A verificação de bloqueio antecede a comparação do hash, de modo que a senha correta não destrava uma conta bloqueada. O ramo inferior da raia Sistema modela o contador de falhas: a quinta tentativa bloqueia a conta por quinze minutos; as anteriores devolvem o controle ao usuário, sem informar quantas tentativas restam. A mensagem de erro é genérica, para não revelar a existência do e-mail. Após o sucesso, o sistema carrega apenas as carteiras visíveis ao perfil (RN-013).
 
 **Figura 17 — BPMN: Autenticação e Controle de Acesso (UC-02, UC-03, RN-001, RN-013)**
 
@@ -1762,7 +1768,7 @@ Destinado a ações (Brasil e Offshore), ETFs, fundos de investimento e títulos
 | nome | Texto | Não | Nome do ativo (preenchido automaticamente se vazio). |
 | classe | Lista | Sim | ACAO, ETF, FUNDO, TESOURO_DIRETO, FII, RENDA_FIXA. |
 | mercado | Lista | Sim | B3, NYSE, NASDAQ, LSE, EURONEXT. |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 | quantidade | Numérico (8 dec) | Sim | Quantidade de cotas/ações da posição. |
 | preco_medio | Numérico (4 dec) | Sim | Preço médio de aquisição na moeda do ativo. |
 | valor_financeiro | Numérico (2 dec) | Sim | Valor financeiro total investido = quantidade × preço médio. |
@@ -1786,7 +1792,7 @@ Destinado a fundos de PE e VC. Diferentemente do template de líquidos, este mod
 | nome_fundo | Texto | Sim | Nome completo do fundo. |
 | gestor | Texto | Sim | Gestora responsável pelo fundo (ex.: Astella Investimentos). |
 | sub_classe | Lista | Sim | PRIVATE_EQUITY, VENTURE_CAPITAL, REAL_ESTATE. |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 | commitment | Numérico (2 dec) | Sim | Valor total comprometido pelo investidor. |
 | data_inicio | Data (dd/mm/aaaa) | Sim | Data do primeiro aporte (initial close). |
 | data_fim_prevista | Data (dd/mm/aaaa) | Não | Data prevista para encerramento do fundo (geralmente 10 anos). |
@@ -1795,6 +1801,8 @@ Destinado a fundos de PE e VC. Diferentemente do template de líquidos, este mod
 | valor_evento | Numérico (2 dec) | Sim* | Aba Eventos: valor monetário do evento. |
 | status | Lista | Sim* | Aba Eventos: PENDENTE, PAGO, RECEBIDO, CANCELADO. |
 | nav_unidade | Numérico (4 dec) | Não* | Aba Eventos: NAV por cota (apenas para NAV_UPDATE). |
+| observacao | Texto | Não* | Aba Eventos: observação livre. |
+| subtipo | Lista | Não* | Aba Eventos: RETORNO_CAPITAL, GANHO_CAPITAL, RENDIMENTO (apenas para DISTRIBUICAO). |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1812,13 +1820,14 @@ Destinado a imóveis diretos (residenciais ou comerciais). Os FIIs (Fundos Imobi
 | nome_descritivo | Texto | Sim | Descrição do imóvel (ex.: Apartamento Centro - Curitiba). |
 | tipo_imovel | Lista | Sim | RESIDENCIAL, COMERCIAL, INDUSTRIAL, RURAL. |
 | endereco | Texto | Não | Endereço completo (uso interno do cliente). |
+| area_m2 | Numérico (2 dec) | Não | Área privativa do imóvel, em m². |
 | data_aquisicao | Data (dd/mm/aaaa) | Sim | Data da escritura/aquisição. |
 | valor_aquisicao | Numérico (2 dec) | Sim | Valor pago na aquisição. |
 | valor_mercado_atual | Numérico (2 dec) | Sim | Estimativa do valor de mercado atual. |
 | data_avaliacao | Data (dd/mm/aaaa) | Sim | Data da última avaliação do valor de mercado. |
 | renda_mensal | Numérico (2 dec) | Não | Renda mensal de aluguel (se aplicável). |
 | despesas_mensais | Numérico (2 dec) | Não | Despesas mensais (IPTU, condomínio, manutenção). |
-| moeda | Lista | Sim | BRL, USD, EUR. |
+| moeda | Lista | Sim | BRL, USD, EUR, GBP. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1830,13 +1839,13 @@ Este capítulo apresenta os wireframes (protótipos de baixa fidelidade) das pri
 
 > **Nota:** todos os dados financeiros, nomes de ativos, tickers e valores exibidos nos wireframes e nos quadros de exemplo deste trabalho são meramente ilustrativos e gerados de forma sintética (fictícia), sem relação com carteiras reais de investidores ou com bases de dados de instituições financeiras.
 
-## 10.1 TELA DE LOGIN E PRIVACIDADE LGPD
+## 10.1 TELAS DE ACESSO E CONSENTIMENTO LGPD
 
-A Figura 25 apresenta, à esquerda, a tela de login (acesso público) e, à direita, a tela de privacidade do usuário autenticado, onde o titular pode exercer todos os seus direitos previstos pela LGPD: consentimento, acesso, portabilidade, correção, limitação de tratamento e esquecimento.
+A Figura 25 apresenta as três abas da tela de acesso público. À esquerda, a tela de login (UC-02); ao centro, a criação de conta (UC-01), em que o usuário lê o termo de consentimento e o aceita de forma explícita antes do cadastro, conforme a LGPD; à direita, a recuperação de senha (UC-03), com envio de código de redefinição ao e-mail cadastrado. Os direitos do titular sobre os dados já armazenados, como portabilidade (RF-027) e eliminação (RF-028), são exercidos na tela de privacidade do usuário autenticado.
 
-**Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)**
+**Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)**
 
-![Figura 25 — Wireframe: Tela de Login e Privacidade (LGPD)](imagens/figura-25.png)
+![Figura 25 — Wireframe: Telas de Acesso (Login, Cadastro com Consentimento LGPD e Recuperação de Senha)](imagens/figura-25.png)
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1852,7 +1861,7 @@ A Figura 26 apresenta a tela de importação organizada em três passos sequenci
 
 ## 10.3 DASHBOARD PRINCIPAL
 
-A Figura 27 apresenta o dashboard principal, organizado em quatro cards de KPI no topo (Patrimônio Total, Rentabilidade MWR, Volatilidade Anual e Maximum Drawdown), e três painéis de visualização: Evolução Patrimonial (gráfico de linha temporal), Performance vs Benchmarks (multi-linha) e Alocação por Classe + Alocação Geográfica (donut e barras horizontais).
+A Figura 27 apresenta o dashboard principal. No topo ficam o seletor de período (desde o início, 12 meses, 24 meses e no ano), o patrimônio consolidado com a divisão entre líquido e ilíquido, o custo de aquisição e o resultado sobre o custo, seguidos da variação no dia, no mês, no ano e desde o início. Logo abaixo, uma faixa de indicadores reúne TWR no período, TWR anualizado, MWR (IRR), volatilidade, índice de Sharpe e drawdown máximo. Na continuação da tela, fora do recorte da figura, quatro abas trazem a alocação (por classe, Brasil × offshore, país, setor e moeda), a evolução patrimonial, a comparação com benchmarks e as posições.
 
 **Figura 27 — Wireframe: Dashboard Principal**
 
@@ -1862,7 +1871,7 @@ A Figura 27 apresenta o dashboard principal, organizado em quatro cards de KPI n
 
 ## 10.4 TELA DO FUNDO PE/VC
 
-A Figura 28 apresenta a tela específica de um fundo PE/VC, com cards de KPI (Commitment, Paid-In, Dry Powder, NAV Atual, Distribuições), painel de métricas PE/VC (MOIC, DPI, TVPI, IRR, J-Curve, Anos do Fundo), histórico cronológico de eventos (capital calls, distribuições e atualizações de NAV) e gráfico J-Curve mostrando o fluxo de caixa acumulado.
+A Figura 28 apresenta a tela específica de um fundo PE/VC, com cards de KPI (Commitment, Capital Integralizado, Dry Powder e NAV Atual), painel de métricas PE/VC (DPI, RVPI, TVPI/MOIC, IRR e Anos do Fundo) e gráfico J-Curve mostrando o fluxo de caixa acumulado do investidor. Abaixo do gráfico, duas abas trazem o histórico cronológico de eventos (capital calls, distribuições e atualizações de NAV) e o formulário de registro de novo evento.
 
 **Figura 28 — Wireframe: Tela de Fundo PE/VC**
 
@@ -1878,15 +1887,15 @@ Este Trabalho de Conclusão de Curso apresentou a proposta de desenvolvimento de
 
 O estudo das plataformas concorrentes evidenciou três lacunas relevantes no mercado brasileiro: a ausência de suporte completo a ativos ilíquidos como Private Equity e Venture Capital, a limitação na consolidação multi-moeda com taxas históricas e a inacessibilidade das plataformas profissionais (B2B) para investidores individuais. O sistema proposto foi concebido para endereçar essas lacunas, respondendo ao problema formulado na introdução por meio de uma arquitetura em camadas, de um modelo de ingestão padronizado e de um motor de cálculo que distingue as métricas adequadas a cada classe de ativo.
 
-Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta: (i) o uso de templates padronizados em XLSX como mecanismo principal de ingestão, oferecendo ao cliente um caminho estruturado e auditável para informar suas posições; (ii) o uso de APIs externas (Yahoo Finance, CVM, BCB e Tesouro Direto) restrito ao enriquecimento de preços de mercado para ativos com ticker listado, mantendo a soberania do cliente sobre seus dados primários; e (iii) a adoção do SQLite como banco de dados local em arquivo, que simplifica o deploy e a manutenção e atende aos requisitos transacionais da versão monousuário.
+Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta: (i) o uso de templates padronizados em XLSX como mecanismo principal de ingestão, oferecendo ao cliente um caminho estruturado e auditável para informar suas posições; (ii) o uso de APIs externas (Yahoo Finance e PTAX do BCB) restrito ao enriquecimento de preços de mercado para ativos com ticker listado e à obtenção de taxas de câmbio, mantendo a soberania do cliente sobre seus dados primários; e (iii) a adoção do SQLite como banco de dados local em arquivo, que simplifica o deploy e a manutenção e atende aos requisitos transacionais da versão monousuário.
 
-A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit, SQLite e Docker (opcional) (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
+A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit e SQLite, distribuída por instalador para Windows e, opcionalmente, por Docker (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
 
-A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementadas pelas métricas específicas de PE/VC (MOIC, DPI e TVPI), busca aderência às práticas consolidadas da indústria financeira. As decisões de segurança e privacidade — JWT, RBAC, AES-256 via Fernet e adequação à LGPD — orientam o tratamento dos dados financeiros dos usuários em conformidade com a legislação.
+A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementadas pelas métricas específicas de PE/VC (MOIC, DPI e TVPI), busca aderência às práticas consolidadas da indústria financeira. As decisões de segurança e privacidade — JWT, RBAC, AES-256-GCM e adequação à LGPD — orientam o tratamento dos dados financeiros dos usuários em conformidade com a legislação.
 
 A modelagem detalhada apresentada nos capítulos 6, 7 e 8 (UML, MER, DDL e BPMN) e os wireframes do capítulo 10 constituem a base técnica para a execução do projeto nas fases subsequentes do cronograma. A matriz de rastreabilidade (Quadro 22) e o catálogo de regras de negócio (Quadro 21) facilitam a verificação contínua de cobertura entre requisitos, implementação e testes.
 
-Como evolução futura, sugere-se: (i) integração com o ecossistema Open Finance para coleta automática de posições, reduzindo a dependência do template como única via de entrada; (ii) suporte a criptoativos, com integração às principais exchanges; (iii) desenvolvimento de aplicativo mobile com sincronização local-nuvem; (iv) ampliação do motor de cálculo com módulo de apuração tributária (Imposto de Renda e come-cotas); (v) inclusão de funcionalidades de planejamento financeiro e projeção patrimonial baseadas em métodos como Monte Carlo; e (vi) migração opcional para PostgreSQL em cenários multi-tenant onde a concorrência de escrita justifique a complexidade adicional. Tais expansões, no entanto, encontram-se fora do escopo desta primeira versão e poderão ser endereçadas em trabalhos subsequentes.
+Como evolução futura, sugere-se: (i) integração com o ecossistema Open Finance para coleta automática de posições, reduzindo a dependência do template como única via de entrada; (ii) suporte a criptoativos, com integração às principais exchanges; (iii) desenvolvimento de aplicativo mobile com sincronização local-nuvem; (iv) ampliação do motor de cálculo com módulo de apuração tributária (Imposto de Renda e come-cotas); (v) inclusão de funcionalidades de planejamento financeiro e projeção patrimonial baseadas em métodos como Monte Carlo; e (vi) migração opcional para PostgreSQL em cenários multi-tenant onde a concorrência de escrita justifique a complexidade adicional. Na camada de integração, registram-se ainda como trabalhos futuros: a coleta de cotas de fundos pelo Portal de Dados Abertos da CVM e de preços e taxas de títulos públicos pelo Tesouro Direto; a coleta real das séries de benchmarks (CDI, IBOV, IPCA, S&P 500 e IFIX), que na demonstração desta versão são simuladas e identificadas com a fonte SIMULADO; e mecanismos de resiliência nas coletas, como retry com backoff e circuit breaker. Tais expansões, no entanto, encontram-se fora do escopo desta primeira versão e poderão ser endereçadas em trabalhos subsequentes.
 
 Reconhecem-se, ainda, as limitações desta etapa: a necessidade do sistema foi inferida de análise documental e comparativa, sem validação empírica junto ao público-alvo, prevista para o TCC II (seção 3.4); a análise de plataformas baseou-se em funcionalidades anunciadas publicamente, sujeitas a alteração; a ingestão depende do preenchimento manual de templates; o enriquecimento de preços depende de fontes gratuitas, sujeitas a limites de uso e mudanças de contrato; e a arquitetura monousuário em SQLite exigirá migração em cenários multiusuário (seção 5.8).
 

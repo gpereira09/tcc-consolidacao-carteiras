@@ -470,6 +470,11 @@ _ABA_SIMPLES = {
 }
 
 
+def _chave_evento(identificador, data_evento, tipo, valor, status) -> tuple:
+    """Identifica um evento de fundo para reconhecer a reimportação do mesmo arquivo."""
+    return identificador, data_evento, tipo, round(float(valor), 2), status
+
+
 def _processar_pevc(wb, tpl: Template, prev: Preview,
                     sessao: Session | None, carteira_id: str | None) -> None:
     aba_f, aba_e = tpl.aba("Fundos"), tpl.aba("Eventos")
@@ -495,17 +500,30 @@ def _processar_pevc(wb, tpl: Template, prev: Preview,
 
     pago: dict[str, float] = {}
     comprometido: dict[str, float] = {}
+    ja_registrados: set[tuple] = set()
     if sessao is not None and carteira_id:
         for fundo in fundos_da_carteira(sessao, carteira_id):
             m = pe.calcular(fundo, sessao)
             ident = fundo.identificador_fundo
-            indice.setdefault(ident, {
+            ja_registrados.update(
+                _chave_evento(ident, e.data_evento, e.tipo_evento, e.valor, e.status)
+                for e in fundo.eventos)
+            pago[ident], comprometido[ident] = m.paid_in, m.paid_in + m.pendente
+            cadastrado = {
                 "identificador_fundo": ident,
                 "commitment": fundo.commitment,
                 "data_inicio": fundo.data_inicio,
                 "moeda": fundo.ativo.moeda,
-            })
-            pago[ident], comprometido[ident] = m.paid_in, m.paid_in + m.pendente
+            }
+            novo = indice.setdefault(ident, cadastrado)
+            if novo is not cadastrado:
+                try:
+                    pe.checar_novo_commitment(novo["commitment"], comprometido[ident], ident)
+                except ValueError as exc:
+                    prev.erros_semanticos.append(
+                        Ocorrencia(aba_f.nome, novo["_linha"], "commitment", str(exc)))
+                    fundos_validos.remove(novo)
+                    indice[ident] = cadastrado
 
     eventos_validos: list[dict] = []
 
@@ -524,6 +542,12 @@ def _processar_pevc(wb, tpl: Template, prev: Preview,
 
     for nlinha, reg, erros in ordenadas:
         ident = reg.get("identificador_fundo")
+        if not erros and _chave_evento(ident, reg["data_evento"], reg["tipo_evento"],
+                                       reg["valor_evento"], reg["status"]) in ja_registrados:
+            prev.avisos.append(Ocorrencia(
+                aba_e.nome, nlinha, None,
+                "evento já registrado neste fundo; a linha foi ignorada para não duplicar"))
+            continue
         if not erros and ident in indice:
             fundo = indice[ident]
             tipo, status, valor = reg["tipo_evento"], reg["status"], reg["valor_evento"]
@@ -635,11 +659,17 @@ def upsert_fundo(sessao: Session, carteira_id: str, *, identificador: str, nome:
         fundo.gestor = gestor
         fundo.data_fim_prevista = data_fim_prevista
 
-    upsert_posicao(
-        sessao, carteira_id, ativo.id,
-        quantidade=1.0, preco_medio=0.0, valor_financeiro=0.0,
-        data_inicial=data_inicio,
-    )
+    # O fundo tem uma única posição, de quantidade 1 (o valor vem do NAV).
+    # Só é criada na primeira vez: recadastrar o fundo não pode somar outra cota.
+    ja_tem_posicao = sessao.scalar(
+        select(Posicao.id).where(Posicao.carteira_id == carteira_id,
+                                 Posicao.ativo_id == ativo.id))
+    if ja_tem_posicao is None:
+        upsert_posicao(
+            sessao, carteira_id, ativo.id,
+            quantidade=1.0, preco_medio=0.0, valor_financeiro=0.0,
+            data_inicial=data_inicio,
+        )
     return fundo
 
 

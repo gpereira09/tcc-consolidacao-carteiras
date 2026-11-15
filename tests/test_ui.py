@@ -101,11 +101,31 @@ class TestTelasAutenticadas:
         markdown = " ".join(m.value for m in at.markdown)
         assert "Patrimônio consolidado" in markdown
 
+    def test_relatorios_avisam_dados_simulados(self, app_populado):
+        """Séries simuladas são sinalizadas também na tela de relatórios."""
+        at = app_populado.run()
+        _navegacao(at)[0].set_value("Relatórios").run()
+        assert not at.exception
+        assert "Ambiente de demonstração" in " ".join(m.value for m in at.markdown)
+
     def test_sem_carteira_nao_quebra(self, sessao):
         """Conta recém-criada, sem posições: a tela orienta em vez de falhar."""
         at = _app_logado(criar_usuario(sessao, "vazio@exemplo.com", "Vazio")).run()
         assert not at.exception
         assert at.info
+
+
+    def test_carteira_sem_acesso_nao_e_exibida(self, app_populado, sessao):
+        """RN-013: quem perdeu o acesso não continua vendo a carteira escolhida antes."""
+        carteira_alheia = app_populado.session_state.carteira_id
+        colaborador = criar_usuario(sessao, "sem.vinculo@exemplo.com", "Sem Vínculo",
+                                    perfil="COLABORADOR")
+        at = _app_logado(colaborador)
+        at.session_state.carteira_id = carteira_alheia
+        at.run()
+        assert not at.exception
+        assert "Patrimônio consolidado" not in " ".join(m.value for m in at.markdown)
+        assert "carteira_id" not in at.session_state
 
 
 class TestFluxosEtapa2:
