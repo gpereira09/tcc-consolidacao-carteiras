@@ -762,17 +762,17 @@ A Lei nº 13.709/2018 (LGPD) estabelece regras para o tratamento de dados pessoa
 
 O sistema utilizará autenticação baseada em JWT (JSON Web Tokens) com refresh tokens para manter sessões seguras sem exigir login frequente. O controle de acesso será baseado em papéis (Role-Based Access Control — RBAC), com três perfis previstos: Administrador (acesso total ao sistema), Colaborador (gestor familiar autorizado pelo titular, com acesso às carteiras a ele vinculadas e sem acesso a configurações) e Cliente (acesso apenas aos próprios dados).
 
-Dados sensíveis (valores financeiros, identificadores pessoais) serão criptografados em repouso utilizando AES-256 por meio da biblioteca `cryptography` (Fernet) do Python, e todas as comunicações utilizarão HTTPS/TLS. Será implementado *rate limiting* para limitar requisições por minuto/hora por usuário, prevenindo abuso.
+Os identificadores pessoais (CPF) e o segredo da autenticação em dois fatores são criptografados em repouso com AES-256 em modo GCM, por meio da biblioteca `cryptography` do Python. Os valores financeiros não são cifrados campo a campo: permanecem no banco de dados local, na máquina do próprio usuário. Na versão instalada, o servidor atende apenas a conexões da própria máquina (127.0.0.1), de modo que os dados não trafegam pela rede; nas execuções via Docker ou por script, a aplicação pode ser servida em HTTPS/TLS com certificado local. Será implementado *rate limiting* para limitar requisições por minuto/hora por usuário, prevenindo abuso.
 
 Chaves de API e credenciais de acesso a serviços externos nunca serão armazenadas em código-fonte ou arquivos de configuração versionados — serão utilizadas variáveis de ambiente.
 
 Quanto às credenciais, as senhas de acesso nunca são armazenadas em texto puro: são submetidas à função de derivação bcrypt (com *cost factor* 12), que aplica salt único por usuário, persistindo-se apenas o hash resultante (campo `senha_hash`). A verificação de login compara apenas os hashes, sem que a senha original trafegue ou seja recuperável.
 
-Os identificadores pessoais (CPF), além de criptografados em repouso, são pseudonimizados (mascarados) na exibição e em relatórios. Todas as ações relevantes sobre os dados são registradas em uma trilha de auditoria (tabela `audit_log`: usuário, ação, entidade, timestamp e IP de origem), assegurando rastreabilidade e integridade das informações.
+Os identificadores pessoais (CPF), além de criptografados em repouso, são pseudonimizados (mascarados) na exibição e em relatórios. Todas as ações relevantes sobre os dados são registradas em uma trilha de auditoria (tabela `audit_log`: usuário, ação, entidade e timestamp), assegurando rastreabilidade e integridade das informações.
 
 No plano da conformidade, a arquitetura adota a privacidade desde a concepção (*privacy by design*): no modelo local, os dados permanecem no ambiente do próprio usuário, minimizando a superfície de exposição.
 
-O consentimento é coletado e registrado com timestamp e IP, e o sistema contempla os direitos do titular previstos na Lei nº 13.709/2018 (LGPD) — acesso, correção, eliminação e portabilidade —, observando os princípios de finalidade, minimização e segurança (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
+O consentimento é coletado e registrado com data e hora, e o sistema contempla os direitos do titular previstos na Lei nº 13.709/2018 (LGPD) — acesso, correção, eliminação e portabilidade —, observando os princípios de finalidade, minimização e segurança (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
 
 O acesso a cada recurso é mediado pelo controle baseado em papéis (RBAC), de modo que cada usuário acesse apenas o patrimônio que lhe é permitido (RN-013). Os registros de auditoria — que abrangem autenticação, importação, exportação e exclusão de dados — não expõem valores sensíveis e apoiam a rastreabilidade exigida pela LGPD e a apuração de eventuais incidentes (BRASIL, 2018; ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS, 2013).
 
@@ -928,17 +928,21 @@ O Quadro 17 apresenta a stack escolhida.
 | Camada | Tecnologia | Justificativa |
 |---|---|---|
 | Frontend / UI | Streamlit | Prototipação rápida, nativo para dashboards de dados, integração Python |
-| Backend / Lógica | Python 3.11+ | Ecossistema robusto para finanças (pandas, numpy, scipy) |
+| Backend / Lógica | Python 3.11+ | Ecossistema robusto para finanças e dados (pandas) |
 | Banco de Dados | SQLite 3.40+ | Banco em arquivo único, sem servidor, ideal para deploy local; suporte a transações ACID; WAL mode |
-| ORM | SQLAlchemy 2.0 | Abstração do banco com suporte a migrações (Alembic) |
+| ORM | SQLAlchemy 2.0 | Abstração do banco; a criação do schema e as migrações leves são feitas pela própria aplicação |
 | Templates XLSX | openpyxl | Leitura e geração de templates padronizados (.xlsx) |
+| Gráficos | Plotly | Gráficos interativos do dashboard |
+| Relatórios | ReportLab e openpyxl | Geração dos relatórios em PDF e em Excel |
 | Coleta — Cotações | yfinance | Ações, ETFs e demais ativos listados, no Brasil e no exterior |
 | Coleta — Câmbio | Requests + API PTAX do BCB | Taxas de câmbio oficiais do Banco Central, obtidas por requisição HTTP |
 | Agendamento | APScheduler | Coleta automática de preços ao fim do pregão (ativos listados) |
 | Distribuição | Instalador para Windows (Inno Setup, com Python embutido) | Forma principal de entrega: instalação por usuário, sem privilégios de administrador e sem exigir Python na máquina |
 | Containerização | Docker (opcional) | Alternativa de execução em ambiente padronizado e reproduzível |
 | Autenticação | JWT (PyJWT) | Tokens seguros para sessões de usuário |
-| Criptografia | cryptography (Fernet) | Criptografia AES-256 de campos sensíveis em repouso |
+| Senhas | bcrypt | Hash das senhas com salt único por usuário (cost factor 12) |
+| Segundo fator | TOTP, com QR code gerado pela biblioteca segno | Autenticação em dois fatores opcional no login |
+| Criptografia | cryptography (AES-256-GCM) | Cifragem dos campos sensíveis em repouso (CPF e segredo do segundo fator) |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1053,8 +1057,8 @@ Os requisitos não funcionais (RNF) descrevem características de qualidade do s
 | RNF-001 | Compatibilidade | O sistema deve ser compatível com Chrome, Firefox, Edge e Safari (duas últimas versões). |
 | RNF-002 | Usabilidade | O sistema deve ser responsivo, utilizável em telas de desktop (≥ 1280 px) e tablets (≥ 768 px). |
 | RNF-003 | Eficiência de desempenho | O dashboard deve carregar em menos de 3 segundos para carteiras com até 100 posições. |
-| RNF-004 | Segurança (confidencialidade) | Dados sensíveis devem ser criptografados em repouso com AES-256 (cryptography/Fernet). |
-| RNF-005 | Segurança (confidencialidade e integridade) | Todas as comunicações devem utilizar HTTPS/TLS 1.2 ou superior. |
+| RNF-004 | Segurança (confidencialidade) | Dados sensíveis devem ser criptografados em repouso com AES-256 (modo GCM, biblioteca cryptography). |
+| RNF-005 | Segurança (confidencialidade e integridade) | A versão instalada deve atender apenas a conexões da própria máquina (127.0.0.1); quando a aplicação for exposta em rede, as comunicações devem utilizar HTTPS/TLS 1.2 ou superior. |
 | RNF-006 | Confiabilidade (disponibilidade) | A coleta automática de preços deve executar diariamente entre 19h e 22h (horário de Brasília). |
 | RNF-007 | Confiabilidade (recuperabilidade) | O sistema deve reter histórico de preços por no mínimo 5 anos. |
 | RNF-008 | Confiabilidade (tolerância a falhas) | Backups automáticos do arquivo SQLite devem ser realizados diariamente. |
@@ -1884,7 +1888,7 @@ Do ponto de vista arquitetural, três decisões estratégicas marcam a proposta:
 
 A arquitetura em camadas (Apresentação, Aplicação, Domínio, Persistência e Integração Externa), combinada à stack tecnológica baseada em Python, Streamlit e SQLite, distribuída por instalador para Windows e, opcionalmente, por Docker (DOCKER INC., 2026), possibilita um equilíbrio adequado entre prototipação rápida e robustez técnica.
 
-A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementadas pelas métricas específicas de PE/VC (MOIC, DPI e TVPI), busca aderência às práticas consolidadas da indústria financeira. As decisões de segurança e privacidade — JWT, RBAC, AES-256 via Fernet e adequação à LGPD — orientam o tratamento dos dados financeiros dos usuários em conformidade com a legislação.
+A escolha das metodologias TWR e MWR para cálculo de rentabilidade, complementadas pelas métricas específicas de PE/VC (MOIC, DPI e TVPI), busca aderência às práticas consolidadas da indústria financeira. As decisões de segurança e privacidade — JWT, RBAC, AES-256-GCM e adequação à LGPD — orientam o tratamento dos dados financeiros dos usuários em conformidade com a legislação.
 
 A modelagem detalhada apresentada nos capítulos 6, 7 e 8 (UML, MER, DDL e BPMN) e os wireframes do capítulo 10 constituem a base técnica para a execução do projeto nas fases subsequentes do cronograma. A matriz de rastreabilidade (Quadro 22) e o catálogo de regras de negócio (Quadro 21) facilitam a verificação contínua de cobertura entre requisitos, implementação e testes.
 
