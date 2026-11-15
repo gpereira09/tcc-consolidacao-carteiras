@@ -10,7 +10,7 @@ Plataforma web para consolidar o patrimônio de investidores pessoa física cuja
 3. Apura a rentabilidade (TWR, inclusive por ativo, e MWR) e as métricas de PE/VC (DPI, RVPI, TVPI e IRR).
 4. Compara o resultado com benchmarks.
 
-A especificação do sistema é a monografia, versionada em [`TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`](TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md), com 28 requisitos funcionais, 12 não funcionais e 15 regras de negócio. Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
+A especificação do sistema é a monografia do TCC, entregue à banca à parte deste repositório, com 28 requisitos funcionais, 12 não funcionais e 15 regras de negócio. Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
 
 ---
 
@@ -153,14 +153,16 @@ tcc-consolidacao-carteiras/
 ├── ui/                       uma tela por módulo, estilo e utilitários
 ├── scripts/                  seed_demo · gerar_certificado · tarefas_diarias
 ├── tests/                    261 testes (pytest), inclusive telas via AppTest
-└── docs/guardioes/           checklists de conformidade com a monografia
+└── docs/
+    ├── modelos/              os três templates XLSX do capítulo 9, prontos para preencher
+    └── guardioes/            checklists de conformidade com a monografia
 ```
 
 ---
 
 ## Templates de ingestão
 
-Os três arquivos são gerados em `data/templates/` pela carga demonstrativa e também podem ser baixados na tela de importação. Cada um traz:
+Os três arquivos estão em [`docs/modelos/`](docs/modelos/). Também são gerados em `data/templates/` pela carga demonstrativa e podem ser baixados na tela de importação. Cada um traz:
 
 - uma aba **Instruções**;
 - a área de preenchimento, com cabeçalho travado e listas suspensas;

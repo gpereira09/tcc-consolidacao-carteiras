@@ -8,7 +8,7 @@ O Sistema de Consolidação de Carteiras de Investimentos é o TCC de Engenharia
 
 ## 2. Fonte de verdade: a monografia
 
-**`TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`** é a especificação do sistema. As figuras ficam em `TCC_FINAL_ABNT_markdown/imagens/`.
+A **monografia do TCC** é a especificação do sistema. Ela é entregue à banca e não fica neste repositório; peça o arquivo a quem solicitou a tarefa se precisar consultar uma seção.
 
 Antes de implementar, alterar ou revisar qualquer coisa, leia as seções correspondentes:
 
