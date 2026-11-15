@@ -28,6 +28,8 @@ No Windows (PowerShell): `$env:CARTEIRA_DATA_REFERENCIA="2026-09-22"; streamlit 
 
 Também é possível usar `./run.sh` (Linux/macOS) ou `run.bat` (Windows). Esses scripts carregam a demonstração se não houver banco e sobem a aplicação. Sem `CARTEIRA_DATA_REFERENCIA`, a aplicação calcula até a data de hoje.
 
+Em todos os modos a aplicação atende só na própria máquina (`127.0.0.1`), porque as contas da demonstração têm senha pública. Para abrir na rede, troque essas senhas antes e depois passe `--server.address` ao Streamlit ou ajuste a porta publicada no `docker-compose.yml`.
+
 | Outros modos | Comando |
 |---|---|
 | HTTPS/TLS local (RNF-005) | `./run.sh --https` ou `run.bat --https` → https://localhost:8501 (certificado autoassinado gerado na hora) |

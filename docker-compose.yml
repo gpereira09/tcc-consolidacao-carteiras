@@ -3,7 +3,8 @@ services:
     build: .
     image: carteira-tcc
     ports:
-      - "8501:8501"
+      # Publica só na própria máquina: a carga demonstrativa usa senhas públicas.
+      - "127.0.0.1:8501:8501"
     environment:
       CARTEIRA_HTTPS: "1"
       CARTEIRA_SEED_DEMO: "1"
