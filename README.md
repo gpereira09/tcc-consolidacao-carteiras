@@ -10,7 +10,7 @@ Plataforma web para consolidar o patrimônio de investidores pessoa física cuja
 3. Apura a rentabilidade (TWR, inclusive por ativo, e MWR) e as métricas de PE/VC (DPI, RVPI, TVPI e IRR).
 4. Compara o resultado com benchmarks.
 
-A situação de cada requisito do TCC (28 RF, 12 RNF, 15 RN) está classificada, com evidências, em [`../auditoria/IMPLEMENTACAO-FINAL.md`](../auditoria/IMPLEMENTACAO-FINAL.md). A classificação usa três categorias: implementado, parcial e não implementado. A arquitetura e as convenções de cálculo estão em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md). Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
+A especificação do sistema é a monografia, versionada em [`TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`](TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md), com 28 requisitos funcionais, 12 não funcionais e 15 regras de negócio. Onde o código aplica uma regra do trabalho, o comentário cita o código (`RN-004`, `RF-017`, `UC-12`…).
 
 ---
 
@@ -125,7 +125,7 @@ Os itens da seção 4.2 do TCC (ordens, impostos, passivos, criptoativos e Open 
 ## Estrutura
 
 ```
-carteira/
+tcc-consolidacao-carteiras/
 ├── app.py                    entrada Streamlit: autenticação, navegação, agendador
 ├── mcp_server.py             servidor MCP de consulta para assistentes de IA (somente leitura)
 ├── config.py                 parâmetros, domínios, caminhos e data de referência
@@ -152,9 +152,9 @@ carteira/
 │   ├── calc/                 rentabilidade.py · pe.py · consolidacao.py
 │   └── market/               cambio.py · precos.py · benchmarks.py · seed_sintetico.py
 ├── ui/                       uma tela por módulo, estilo e utilitários
-├── scripts/                  seed_demo · gerar_ddl · gerar_certificado · tarefas_diarias · capturar_telas
-├── tests/                    239 testes (pytest), inclusive telas via AppTest
-└── docs/                     ARQUITETURA.md · apendice_a_ddl.sql · telas/
+├── scripts/                  seed_demo · gerar_certificado · tarefas_diarias
+├── tests/                    268 testes (pytest), inclusive telas via AppTest
+└── docs/guardioes/           checklists de conformidade com a monografia
 ```
 
 ---
@@ -195,10 +195,10 @@ Na RN-004, as chamadas pendentes também contam para o limite do commitment.
 
 - **Números:** vêm de `src/calc`, os mesmos da aplicação. O assistente só os interpreta.
 - **Acesso:** o servidor age em nome do usuário em `CARTEIRA_MCP_EMAIL` e vê apenas as carteiras que ele veria na tela (RN-013).
-- **Auditoria:** cada consulta é registrada como `CONSULTA_MCP` (RF-026).
+- **Auditoria:** as consultas de posição, rentabilidade e fundos são registradas como `CONSULTA_MCP` (RF-026). A listagem de carteiras não é registrada.
 - **Privacidade:** não expõe CPF, e-mail nem nome do titular. Os valores da carteira, porém, chegam ao provedor do assistente. Para dados reais, isso exige base legal e consentimento (LGPD, art. 33); na demonstração, os dados são sintéticos.
 
-Instalação: `pip install -r requirements-mcp.txt`. O `.mcp.json` na raiz já registra o servidor para o Claude Code, com o usuário da demonstração. Em outros clientes (Claude Desktop, por exemplo), use o mesmo comando:
+Instalação: `pip install -r requirements-mcp.txt`. Para registrar o servidor num cliente MCP (Claude Code ou Claude Desktop, por exemplo), use esta configuração, que aponta para o usuário da demonstração:
 
 ```json
 { "command": "python", "args": ["<caminho>/carteira/mcp_server.py"],
@@ -214,7 +214,7 @@ Testes: `tests/test_mcp_server.py`.
 - **Senhas e login:**
   - senhas com bcrypt (cost 12);
   - após 5 falhas, bloqueio de 15 minutos;
-  - a mensagem de erro não revela se o e-mail existe (RN-001).
+  - a mensagem de credenciais inválidas não revela se o e-mail existe (RN-001); o bloqueio, quando ocorre, é informado.
 - **Sessão:** access token JWT de 15 minutos e refresh token de 7 dias, rotativo e revogado no logout, na troca de senha, na desativação e na exclusão.
 - **Cifragem:**
   - CPF e segredo do 2FA são cifrados com **AES-256-GCM** (chave em `data/.aes256.key` ou em `CARTEIRA_AES_KEY`);
