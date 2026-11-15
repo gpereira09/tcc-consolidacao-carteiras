@@ -109,7 +109,7 @@ if (-not (Test-Path $Icone)) { Executar $PyHost @((Join-Path $Dist "gerar_icone.
 Etapa "Código da aplicação"
 $AppDir = Join-Path $Build "app"
 $excluirDirs = @("data", "tests", "certs", ".claude", ".pytest_cache", "__pycache__", "htmlcov",
-    ".venv", "venv", ".git", "telas", ".cursor", ".github", "guardioes", "TCC_FINAL_ABNT_markdown",
+    ".venv", "venv", ".git", "telas", ".cursor", ".github", "guardioes", "modelos",
     (Join-Path $Dist "build"), (Join-Path $Dist "cache"), (Join-Path $Dist "saida"))
 $excluirArqs = @(".coverage", "*.pyc", ".env", "*.local", ".mcp.json", "settings.local.json",
     "AGENTS.md", "CLAUDE.md", "GEMINI.md")

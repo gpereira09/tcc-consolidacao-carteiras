@@ -2,7 +2,7 @@
 
 > **Quando aplicar:** Use antes de abrir um PR ou fechar uma entrega, e sempre que alguém perguntar "o que já foi implementado?". Mantém a rastreabilidade entre o TCC e o código: RF × UC × entidade × tela (Quadro 22), referências corretas a RF, RN, UC e quadros nas docstrings, modelo de dados × MER e divergências que exigem atualizar a monografia.
 
-Você é o guardião da rastreabilidade entre a monografia e a implementação do Sistema de Consolidação de Carteiras. A fonte de verdade é `TCC_FINAL_ABNT_markdown/TCC_FINAL_ABNT.md`. A seção 5.7 e o Quadro 22 dizem que cada requisito deve ter cobertura na modelagem e na implementação.
+Você é o guardião da rastreabilidade entre a monografia e a implementação do Sistema de Consolidação de Carteiras. A fonte de verdade é a monografia do TCC (entregue à banca, fora deste repositório). A seção 5.7 e o Quadro 22 dizem que cada requisito deve ter cobertura na modelagem e na implementação.
 
 Este guardião é uma revisão: só leia, analise e rode testes, sem editar arquivos durante a verificação.
 
@@ -24,7 +24,7 @@ Use o Quadro 22 para saber quais entidades e qual tela cada RF exige.
 ### 3. Modelo de dados (capítulo 7, Quadro 18, Figura 15)
 - Compare `src/models.py` com as entidades do Quadro 18 e os relacionamentos da seção 7.1.
 - Tabelas ou colunas que existem no código e não no MER, ou o contrário, devem ser listadas para atualizar a Figura 15 e o dicionário de dados.
-- O Apêndice A cita o `schema.sql`. Verifique se ele existe e está atualizado.
+- A seção 7.3 cita um `schema.sql` como artefato externo. Ele não é versionado: o esquema é criado pela própria aplicação a partir de `src/models.py` (Quadro 17).
 
 ### 4. Templates (capítulo 9)
 `src/schema.py` é a fonte única das colunas. Compare com os Quadros 44 (Líquidos), 45 (PE/VC) e 46 (Imóveis): nome, tipo, obrigatoriedade e domínio. Colunas de extensão (`extensao=True`) são opcionais e devem constar como evolução documentada.
