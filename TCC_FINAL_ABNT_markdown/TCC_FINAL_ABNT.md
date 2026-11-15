@@ -578,7 +578,7 @@ A conversão é aplicada de forma retroativa, utilizando a taxa de câmbio da da
 
 #### Tratamento de Lacunas de Dados
 
-Lacunas nos dados históricos — causadas por feriados, suspensões de negociação ou indisponibilidade de fonte — são tratadas por meio de técnicas de preenchimento. O método *forward fill* utiliza o último preço conhecido para preencher dias sem cotação, sendo apropriado para ações e fundos. A interpolação linear estima valores intermediários entre dois pontos conhecidos e é utilizada para ativos ilíquidos com atualizações trimestrais de NAV.
+Lacunas nos dados históricos — causadas por feriados, suspensões de negociação ou indisponibilidade de fonte — são tratadas por meio de técnicas de preenchimento. O método *forward fill* utiliza o último preço conhecido para preencher dias sem cotação, sendo apropriado para ações e fundos. Para ativos ilíquidos com atualizações trimestrais de NAV, o sistema mantém o último NAV informado e o ajusta pelos fluxos posteriores (chamadas pagas e distribuições), sem interpolar valores entre duas avaliações.
 
 Para o cálculo de dias úteis, é utilizada a biblioteca pandas com o módulo BusinessDay (`BDay`), que permite o tratamento adequado de feriados e dias não úteis no calendário financeiro brasileiro (PANDAS DEVELOPMENT TEAM, 2026).
 
@@ -1080,17 +1080,17 @@ As regras de negócio (RN) representam invariantes e validações de domínio qu
 | RN-001 | E-mail é identificador único do usuário; senha deve atender política mínima (≥ 8 caracteres, com letras e números). Após 5 tentativas falhas, a conta é bloqueada por 15 minutos. |
 | RN-002 | Toda importação de template XLSX deve passar por duas etapas de validação: estrutural (colunas obrigatórias, tipos) e semântica (valores válidos, datas coerentes, regras de domínio). |
 | RN-003 | Em caso de erro estrutural no template, a importação é abortada integralmente. Em caso de erro semântico em linhas específicas, o cliente pode optar por importar apenas as linhas válidas. |
-| RN-004 | Em fundos de PE/VC, a soma das chamadas de capital com status 'pago' não pode exceder o commitment total do investidor naquele fundo (dry_powder ≥ 0). |
+| RN-004 | Em fundos de PE/VC, a soma das chamadas de capital com status 'pago' ou 'pendente' não pode exceder o commitment total do investidor naquele fundo (dry_powder ≥ 0). |
 | RN-005 | Toda distribuição PE/VC deve estar vinculada a um fundo previamente cadastrado com paid_in_capital > 0. |
 | RN-006 | O atributo possui_ticker_listado do ATIVO determina se o sistema busca preço de mercado via API externa. Para ativos com possui_ticker_listado=true, o preço de tela é persistido em PRECO_HISTORICO e usado em marcação a mercado. |
 | RN-007 | Para ativos sem ticker listado, o valor financeiro da posição é calculado pelo preço médio informado no template multiplicado pela quantidade, ou pelo valor financeiro diretamente informado quando aplicável. |
 | RN-008 | Toda posição importada deve ser associada a uma carteira do cliente autenticado. Não é permitido importar posições para carteiras de outros usuários. |
 | RN-009 | A conversão de moeda utiliza a taxa de câmbio histórica da data de referência da posição. Em caso de ausência de taxa para a data, aplica-se forward fill (última taxa conhecida anterior). |
-| RN-010 | O cálculo de TWR considera subperíodos delimitados por fluxos de caixa (aportes/resgates), aplicando produto geométrico dos retornos. |
+| RN-010 | O cálculo de TWR considera subperíodos mensais: o retorno de cada um é apurado pelo método de Dietz modificado, que pondera os fluxos de caixa (aportes/resgates) pelo tempo em que ficaram investidos, e os retornos são encadeados por produto geométrico. |
 | RN-011 | O cálculo de MWR/IRR é realizado por método iterativo (Newton-Raphson) sobre os fluxos de caixa da carteira; valor inicial sugerido: 0,10 (10% a.a.). |
 | RN-012 | Métricas PE/VC são recalculadas automaticamente a cada inserção de evento (capital call, distribuição ou NAV update). |
 | RN-013 | O perfil ADMIN tem acesso a todas as carteiras. COLABORADOR tem acesso somente às carteiras dos clientes vinculados a ele. CLIENTE tem acesso apenas à própria carteira. |
-| RN-014 | A solicitação de portabilidade LGPD exige reautenticação. O arquivo gerado tem link de uso único com validade de 24 horas. |
+| RN-014 | A solicitação de portabilidade LGPD exige reautenticação. O arquivo gerado é protegido por um link de uso único com validade de 24 horas; a tela o resgata no momento da solicitação, de modo que o arquivo é entregue uma única vez e não permanece armazenado no servidor. |
 | RN-015 | A exclusão LGPD remove dados pessoais identificáveis. Dados retidos por obrigação legal (ex.: logs de auditoria) são anonimizados (substituição do usuario_id pela constante 'EXCLUIDO_LGPD'). |
 
 *Fonte: Elaborado pelos autores (2026).*
@@ -1201,7 +1201,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Disparador | Usuário acessa a aplicação. |
 | Fluxo principal | 1. Sistema exibe formulário com campos: e-mail e senha.<br>2. Usuário submete.<br>3. Sistema verifica se a conta está bloqueada por tentativas falhas (RN-001).<br>4. Sistema valida as credenciais comparando a senha com o hash bcrypt armazenado.<br>5. Sistema zera o contador de tentativas, registra o último acesso e emite token JWT.<br>6. Sistema registra LOGIN em AUDIT_LOG.<br>7. Sistema carrega as carteiras visíveis ao perfil (RN-013) e redireciona ao dashboard. |
 | Fluxos alternativos | FA-01 (Esqueci minha senha): usuário aciona UC-03. |
-| Exceções | EX-01 (Credenciais inválidas): sistema exibe mensagem genérica, incrementa o contador e informa as tentativas restantes.<br>EX-02 (Quinta tentativa falha): sistema bloqueia a conta por 15 minutos e registra LOGIN_FALHA (RN-001).<br>EX-03 (Conta bloqueada ou desativada): sistema recusa o acesso mesmo com a senha correta e informa o tempo restante de bloqueio. |
+| Exceções | EX-01 (Credenciais inválidas): sistema exibe mensagem genérica e incrementa o contador, sem informar as tentativas restantes.<br>EX-02 (Quinta tentativa falha): sistema bloqueia a conta por 15 minutos e registra LOGIN_FALHA (RN-001).<br>EX-03 (Conta bloqueada ou desativada): sistema recusa o acesso mesmo com a senha correta e informa o tempo restante de bloqueio. |
 | Pós-condição | Usuário autenticado com token JWT válido; carteira inicial selecionada. |
 | RN relacionadas | RN-001, RN-013 |
 
@@ -1222,7 +1222,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Token expirado ou já utilizado): sistema informa que o link não é mais válido e oferece nova solicitação.<br>EX-02 (Nova senha fora da política): sistema exibe as regras e mantém a senha anterior.<br>EX-03 (Falha no envio do e-mail): sistema registra a falha e orienta o usuário a tentar novamente mais tarde. |
 | Pós-condição | Senha redefinida; token consumido; conta desbloqueada. |
 | RN relacionadas | RN-001 |
-| Observação | Prioridade Should (RF-003). Não implementado no MVP por depender de serviço de envio de e-mail. |
+| Observação | Prioridade Should (RF-003). Quando não há servidor de e-mail configurado, a mensagem com o link é gravada em uma caixa de saída local, o que mantém o fluxo completo sem depender de serviço externo. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1259,7 +1259,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Campo obrigatório ausente ou fora do domínio): sistema destaca o campo e impede a submissão.<br>EX-02 (Moeda incoerente com o mercado): sistema informa a moeda esperada (por exemplo, B3 = BRL). |
 | Pós-condição | Posição criada ou consolidada; preço de referência disponível. |
 | RN relacionadas | RN-006, RN-007, RN-008 |
-| Observação | Prioridade Should (RF-007). Alternativa ao template; não implementado no MVP. |
+| Observação | Prioridade Should (RF-007). Alternativa ao template, disponível na tela de lançamentos manuais. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1324,7 +1324,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Ator principal | Cliente, Colaborador |
 | Pré-condições | Fundo PE/VC previamente cadastrado (UC-08). Commitment definido. |
 | Disparador | Usuário acessa a tela do fundo e escolhe "Capital call" em "Registrar evento". |
-| Fluxo principal | 1. Sistema exibe formulário com campos: data, valor, status (PENDENTE ou PAGO) e observação.<br>2. Usuário preenche e submete.<br>3. Sistema valida valor positivo e data não anterior ao início do fundo.<br>4. Se status = PAGO, sistema verifica que a soma das chamadas pagas mais o valor não excede o commitment (RN-004).<br>5. Sistema persiste em EVENTO_PE com tipo = CAPITAL_CALL.<br>6. Sistema recalcula paid_in_capital, dry_powder e NAV em ATIVO_ILIQUIDO e reflete o NAV na POSICAO (RN-012).<br>7. Sistema recalcula DPI, RVPI, TVPI e IRR (UC-15).<br>8. Sistema registra REGISTRAR_EVENTO_PE em AUDIT_LOG e atualiza a tela com o evento e as métricas. |
+| Fluxo principal | 1. Sistema exibe formulário com campos: data, valor, status (PENDENTE ou PAGO) e observação.<br>2. Usuário preenche e submete.<br>3. Sistema valida valor positivo e data não anterior ao início do fundo.<br>4. Sistema verifica que a soma das chamadas pagas e pendentes, mais o valor informado, não excede o commitment (RN-004).<br>5. Sistema persiste em EVENTO_PE com tipo = CAPITAL_CALL.<br>6. Sistema recalcula paid_in_capital, dry_powder e NAV em ATIVO_ILIQUIDO e reflete o NAV na POSICAO (RN-012).<br>7. Sistema recalcula DPI, RVPI, TVPI e IRR (UC-15).<br>8. Sistema registra REGISTRAR_EVENTO_PE em AUDIT_LOG e atualiza a tela com o evento e as métricas. |
 | Fluxos alternativos | FA-01 (Status = PENDENTE): paid_in_capital não é alterado; o dry powder é reduzido; o evento aguarda confirmação posterior. Datas futuras são aceitas apenas neste status. |
 | Exceções | EX-01 (Valor excede o commitment): sistema rejeita e informa o valor ainda disponível para chamada.<br>EX-02 (Data anterior ao início do fundo): sistema rejeita e informa a data de início. |
 | Pós-condição | Evento registrado; métricas PE/VC atualizadas; ação auditada. |
@@ -1450,7 +1450,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Exceções | EX-01 (Carteira vazia): sistema informa que não há posições para exportar. |
 | Pós-condição | Arquivo gerado e entregue ao usuário. |
 | RN relacionadas | RN-013 |
-| Observação | Prioridade Could (RF-023). O formato PDF permanece como evolução. |
+| Observação | Prioridade Could (RF-023). O relatório também é oferecido em PDF. |
 
 *Fonte: Elaborado pelos autores (2026).*
 
@@ -1463,7 +1463,7 @@ Os casos de uso são especificados a seguir no formato Cockburn (caso completo),
 | Ator principal | Cliente (titular dos dados) |
 | Pré-condições | Usuário autenticado. |
 | Disparador | Usuário acessa "Privacidade e dados" e escolhe "Exportar meus dados". |
-| Fluxo principal | 1. Sistema solicita reautenticação com senha (e 2FA, se habilitado) (RN-014).<br>2. Usuário escolhe o formato: JSON (dossiê completo) ou CSV (pacote com planilhas separadas).<br>3. Sistema coleta todos os dados associados ao titular — cadastro, carteiras, posições, transações, fundos e eventos, imóveis, importações e trilha de auditoria — por junções entre as tabelas.<br>4. Sistema decifra o CPF para entrega em claro ao titular.<br>5. Sistema gera o arquivo e emite link de download de uso único com validade de 24 horas (RN-014).<br>6. Sistema registra EXPORTAR_LGPD em AUDIT_LOG.<br>7. Usuário baixa o arquivo; o link é consumido. |
+| Fluxo principal | 1. Sistema solicita reautenticação com senha (e 2FA, se habilitado) (RN-014).<br>2. Usuário escolhe o formato: JSON (dossiê completo) ou CSV (pacote com planilhas separadas).<br>3. Sistema coleta todos os dados associados ao titular — cadastro, carteiras, posições, transações, fundos e eventos, imóveis, importações e trilha de auditoria — por junções entre as tabelas.<br>4. Sistema decifra o CPF para entrega em claro ao titular.<br>5. Sistema gera o arquivo, protegido por link de uso único com validade de 24 horas, resgata-o em seguida para download imediato e o remove do servidor (RN-014).<br>6. Sistema registra EXPORTAR_LGPD em AUDIT_LOG.<br>7. Usuário baixa o arquivo; o link é consumido. |
 | Fluxos alternativos | FA-01 (Usuário cancela antes da geração): sistema descarta a solicitação sem registrar em AUDIT_LOG. |
 | Exceções | EX-01 (Reautenticação falha): sistema cancela a solicitação.<br>EX-02 (Link expirado ou já utilizado): sistema recusa o download e orienta nova solicitação. |
 | Pós-condição | Arquivo gerado e entregue; solicitação registrada; link consumido. |
@@ -1670,7 +1670,7 @@ O processo de onboarding cobre desde o acesso à página de cadastro até a disp
 
 ## 8.2 AUTENTICAÇÃO E CONTROLE DE ACESSO
 
-O processo de autenticação integra o login (UC-02), a recuperação de senha (UC-03) e o controle de tentativas da RN-001. A verificação de bloqueio antecede a comparação do hash, de modo que a senha correta não destrava uma conta bloqueada. O ramo inferior da raia Sistema modela o contador de falhas: a quinta tentativa bloqueia a conta por quinze minutos; as anteriores devolvem o controle ao usuário com a informação de tentativas restantes. A mensagem de erro é genérica, para não revelar a existência do e-mail. Após o sucesso, o sistema carrega apenas as carteiras visíveis ao perfil (RN-013).
+O processo de autenticação integra o login (UC-02), a recuperação de senha (UC-03) e o controle de tentativas da RN-001. A verificação de bloqueio antecede a comparação do hash, de modo que a senha correta não destrava uma conta bloqueada. O ramo inferior da raia Sistema modela o contador de falhas: a quinta tentativa bloqueia a conta por quinze minutos; as anteriores devolvem o controle ao usuário, sem informar quantas tentativas restam. A mensagem de erro é genérica, para não revelar a existência do e-mail. Após o sucesso, o sistema carrega apenas as carteiras visíveis ao perfil (RN-013).
 
 **Figura 17 — BPMN: Autenticação e Controle de Acesso (UC-02, UC-03, RN-001, RN-013)**
 
