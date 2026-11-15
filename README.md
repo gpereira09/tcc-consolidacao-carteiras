@@ -127,9 +127,8 @@ Os itens da seção 4.2 do TCC (ordens, impostos, passivos, criptoativos e Open 
 ```
 tcc-consolidacao-carteiras/
 ├── app.py                    entrada Streamlit: autenticação, navegação, agendador
-├── mcp_server.py             servidor MCP de consulta para assistentes de IA (somente leitura)
 ├── config.py                 parâmetros, domínios, caminhos e data de referência
-├── requirements.txt          dependências de execução (requirements-dev.txt: testes; requirements-mcp.txt: servidor MCP)
+├── requirements.txt          dependências de execução (requirements-dev.txt: testes)
 ├── Dockerfile, docker-compose.yml, docker-entrypoint.sh, run.sh, run.bat
 ├── distribuicao/            instalador para Windows: iniciador, build (construir.ps1), Inno Setup, ícone
 ├── src/
@@ -153,7 +152,7 @@ tcc-consolidacao-carteiras/
 │   └── market/               cambio.py · precos.py · benchmarks.py · seed_sintetico.py
 ├── ui/                       uma tela por módulo, estilo e utilitários
 ├── scripts/                  seed_demo · gerar_certificado · tarefas_diarias
-├── tests/                    268 testes (pytest), inclusive telas via AppTest
+├── tests/                    261 testes (pytest), inclusive telas via AppTest
 └── docs/guardioes/           checklists de conformidade com a monografia
 ```
 
@@ -179,33 +178,6 @@ A validação separa dois tipos de erro:
 - **Erro semântico:** só a linha afetada fica de fora.
 
 Na RN-004, as chamadas pendentes também contam para o limite do commitment.
-
----
-
-## Servidor MCP (consulta por assistente de IA)
-
-`mcp_server.py` publica, pelo Model Context Protocol, quatro ferramentas **somente de leitura**:
-
-| Ferramenta | Retorna |
-|---|---|
-| `listar_carteiras` | carteiras visíveis ao usuário |
-| `posicao_consolidada` | patrimônio, alocação por classe, moeda e país e posições numa data (RF-019) |
-| `rentabilidade` | TWR, MWR, volatilidade, drawdown, Sharpe, benchmarks e TWR por ativo (RF-015/016/018) |
-| `fundos_iliquidos` | commitment, paid-in, NAV, DPI, RVPI, TVPI, MOIC e TIR dos fundos (RF-017) |
-
-- **Números:** vêm de `src/calc`, os mesmos da aplicação. O assistente só os interpreta.
-- **Acesso:** o servidor age em nome do usuário em `CARTEIRA_MCP_EMAIL` e vê apenas as carteiras que ele veria na tela (RN-013).
-- **Auditoria:** as consultas de posição, rentabilidade e fundos são registradas como `CONSULTA_MCP` (RF-026). A listagem de carteiras não é registrada.
-- **Privacidade:** não expõe CPF, e-mail nem nome do titular. Os valores da carteira, porém, chegam ao provedor do assistente. Para dados reais, isso exige base legal e consentimento (LGPD, art. 33); na demonstração, os dados são sintéticos.
-
-Instalação: `pip install -r requirements-mcp.txt`. Para registrar o servidor num cliente MCP (Claude Code ou Claude Desktop, por exemplo), use esta configuração, que aponta para o usuário da demonstração:
-
-```json
-{ "command": "python", "args": ["<caminho>/carteira/mcp_server.py"],
-  "env": { "CARTEIRA_MCP_EMAIL": "investidor@exemplo.com" } }
-```
-
-Testes: `tests/test_mcp_server.py`.
 
 ---
 
