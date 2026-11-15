@@ -1,7 +1,7 @@
 """
 Tarefas agendadas (RF-013, RNF-006, RNF-008).
 
-  * Coleta diária de preços dos ativos listados e da PTAX (BCB), às
+  * Coleta diária de preços dos ativos listados, da PTAX (BCB) e dos benchmarks, às
     19h30 de Brasília — dentro da janela de 19h a 22h do RNF-006, após o
     fechamento do pregão da B3 e dos mercados americanos.
   * Backup diário do banco às 22h30 (RNF-008).
@@ -37,11 +37,12 @@ class ResumoColeta:
     atualizados: int = 0
     falhas: list[str] = field(default_factory=list)
     cambio: dict[str, int] = field(default_factory=dict)
+    benchmarks: dict[str, int] = field(default_factory=dict)
 
 
-def coletar_precos(coletor_cambio=None) -> ResumoColeta:
-    """RF-013 — atualiza preços de todos os ativos listados e a PTAX."""
-    from src.market import cambio, precos
+def coletar_precos(coletor_cambio=None, coletor_benchmarks=None) -> ResumoColeta:
+    """RF-013 — atualiza preços dos ativos listados, a PTAX e os benchmarks (RF-018)."""
+    from src.market import benchmarks, cambio, precos
 
     resumo = ResumoColeta(inicio=datetime.now())
     sessao = SessionLocal()
@@ -60,11 +61,14 @@ def coletar_precos(coletor_cambio=None) -> ResumoColeta:
         inicio = date.today() - timedelta(days=7)
         for moeda in (m for m in config.MOEDAS if m != "BRL"):
             resumo.cambio[moeda] = coletor(sessao, moeda, inicio)
+        resumo.benchmarks = (coletor_benchmarks or benchmarks.atualizar)(
+            sessao, config.INICIO_SERIES_MERCADO)
 
         resumo.fim = datetime.now()
         audit.registrar(sessao, usuario_id=None, acao=audit.COLETA_AGENDADA, entidade="PRECO_HISTORICO",
                         dados_novos={"ativos": resumo.ativos, "atualizados": resumo.atualizados,
-                                     "falhas": resumo.falhas[:50], "cambio": resumo.cambio})
+                                     "falhas": resumo.falhas[:50], "cambio": resumo.cambio,
+                                     "benchmarks": resumo.benchmarks})
         sessao.commit()
     finally:
         sessao.close()

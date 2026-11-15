@@ -136,7 +136,7 @@ def atualizar_bcb(
 ) -> int:
     """
     Coleta a série PTAX de venda (moeda/BRL) no período e persiste.
-    Devolve a quantidade de cotações gravadas. Falha de rede não propaga:
+    Devolve a quantidade de dias com cotação gravada. Falha de rede não propaga:
     o sistema segue operando com a série já armazenada (seção 5.8).
     """
     import requests
@@ -150,13 +150,14 @@ def atualizar_bcb(
         "$select": "cotacaoVenda,dataHoraCotacao",
     }
     try:
-        resp = requests.get(BCB_PTAX_URL, params=params, timeout=config.HTTP_TIMEOUT)
+        resp = requests.get(BCB_PTAX_URL, params=params, timeout=config.HTTP_TIMEOUT_SERIE)
         resp.raise_for_status()
         itens = resp.json().get("value", [])
     except Exception:
         return 0
 
-    gravadas = 0
+    # O BCB publica vários boletins por dia; vale o último (fechamento).
+    cotacoes: dict[date, float] = {}
     for item in itens:
         try:
             dia = date.fromisoformat(item["dataHoraCotacao"][:10])
@@ -164,8 +165,9 @@ def atualizar_bcb(
         except (KeyError, ValueError, TypeError):
             continue
         if taxa > 0:
-            registrar_taxa(sessao, dia, moeda.upper(), "BRL", taxa, "BCB_PTAX")
-            gravadas += 1
+            cotacoes[dia] = taxa
+    for dia, taxa in cotacoes.items():
+        registrar_taxa(sessao, dia, moeda.upper(), "BRL", taxa, "BCB_PTAX")
     sessao.commit()
-    return gravadas
+    return len(cotacoes)
 

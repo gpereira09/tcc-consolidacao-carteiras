@@ -9,6 +9,10 @@ série). Isso uniformiza o tratamento de índices de preço (IBOV, S&P, IFIX)
 e de taxas acumuladas (CDI, IPCA): o retorno de qualquer benchmark entre
 duas datas passa a ser sempre `valor_fim / valor_inicio − 1`.
 
+As séries vêm de fontes públicas: CDI e IPCA do Sistema Gerenciador de
+Séries Temporais do Banco Central, Ibovespa e S&P 500 do Yahoo Finance e
+IFIX da B3. Uma falha de coleta mantém a série já armazenada (seção 5.8).
+
 Na comparação com a carteira, o retorno do índice é expresso na moeda base
 do cliente: um índice em outra moeda (o S&P 500 é cotado em USD) tem o
 retorno composto com a variação cambial do período,
@@ -17,15 +21,18 @@ retorno fica na moeda do índice e o comparativo informa essa moeda.
 """
 from __future__ import annotations
 
+import base64
+import json
 from bisect import bisect_right
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+import config
 from src.calc.rentabilidade import anualizar
-from src.market import cambio
+from src.market import cambio, precos
 from src.models import Benchmark, BenchmarkValor
 
 CATALOGO = {
@@ -74,6 +81,110 @@ def registrar_valor(sessao: Session, bmk: Benchmark, dia: date, valor: float) ->
         existente.valor = valor
     else:
         sessao.add(BenchmarkValor(benchmark_id=bmk.id, data=dia, valor=valor))
+
+
+SGS_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados"
+SGS_CDI, SGS_IPCA = 12, 433
+SGS_MAX_DIAS = 3650
+B3_INDICE_URL = ("https://sistemaswebb3-listados.b3.com.br/indexStatisticsProxy/"
+                 "IndexCall/GetPortfolioDay/")
+
+
+def _sgs(serie_sgs: int, inicio: date, fim: date) -> list[tuple[date, float]]:
+    """Série do SGS/BCB como (data, variação em %). A API limita consultas a dez anos."""
+    import requests
+
+    inicio = max(inicio, fim - timedelta(days=SGS_MAX_DIAS))
+    resp = requests.get(
+        SGS_URL.format(serie=serie_sgs),
+        params={"formato": "json", "dataInicial": f"{inicio:%d/%m/%Y}",
+                "dataFinal": f"{fim:%d/%m/%Y}"},
+        timeout=config.HTTP_TIMEOUT_SERIE,
+    )
+    resp.raise_for_status()
+    return [(datetime.strptime(item["data"], "%d/%m/%Y").date(), float(item["valor"]))
+            for item in resp.json()]
+
+
+def _coletar_cdi(inicio: date, fim: date) -> list[tuple[date, float]]:
+    """CDI diário (% a.d.) acumulado em número-índice."""
+    pontos, indice = [], 100.0
+    for dia, taxa in _sgs(SGS_CDI, inicio, fim):
+        indice *= 1.0 + taxa / 100.0
+        pontos.append((dia, indice))
+    return pontos
+
+
+def _coletar_ipca(inicio: date, fim: date) -> list[tuple[date, float]]:
+    """IPCA mensal acumulado; a variação de cada mês entra no último dia do mês."""
+    pontos, indice = [], 100.0
+    for mes, variacao in _sgs(SGS_IPCA, inicio.replace(day=1), fim):
+        if not pontos:
+            pontos.append((mes, indice))
+        indice *= 1.0 + variacao / 100.0
+        fim_do_mes = (mes.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        if fim_do_mes <= fim:
+            pontos.append((fim_do_mes, indice))
+    return pontos
+
+
+def _coletar_b3(indice: str, inicio: date, fim: date) -> list[tuple[date, float]]:
+    """Fechamentos diários de um índice da B3 (uma consulta por ano)."""
+    import requests
+
+    pontos = []
+    for ano in range(inicio.year, fim.year + 1):
+        consulta = json.dumps({"index": indice, "language": "pt-br", "year": str(ano)})
+        resp = requests.get(B3_INDICE_URL + base64.b64encode(consulta.encode()).decode(),
+                            timeout=config.HTTP_TIMEOUT_SERIE)
+        resp.raise_for_status()
+        for linha in resp.json().get("results") or []:
+            for mes in range(1, 13):
+                texto = linha.get(f"rateValue{mes}")
+                if not texto:
+                    continue
+                dia = date(ano, mes, int(linha["day"]))
+                if inicio <= dia <= fim:
+                    pontos.append((dia, float(texto.replace(".", "").replace(",", "."))))
+    return sorted(pontos)
+
+
+COLETORES = {
+    "CDI": _coletar_cdi,
+    "IPCA": _coletar_ipca,
+    "IBOV": lambda inicio, fim: precos._historico_yahoo("^BVSP", inicio, fim),
+    "SP500": lambda inicio, fim: precos._historico_yahoo("^GSPC", inicio, fim),
+    "IFIX": lambda inicio, fim: _coletar_b3("IFIX", inicio, fim),
+}
+
+
+def atualizar(sessao: Session, inicio: date, fim: date | None = None,
+              coletores: dict | None = None) -> dict[str, int]:
+    """
+    RF-018 — coleta as séries dos benchmarks nas fontes públicas e regrava cada
+    uma por inteiro, rebaseada em 100 na primeira data. Devolve os pontos
+    gravados por índice; zero indica falha de coleta, caso em que a série já
+    armazenada é mantida (seção 5.8).
+    """
+    fim = fim or date.today()
+    catalogo = garantir_catalogo(sessao)
+    gravados: dict[str, int] = {}
+    for codigo, coletor in (coletores or COLETORES).items():
+        try:
+            pontos = coletor(inicio, fim)
+        except Exception:
+            pontos = []
+        if len(pontos) < 2:
+            gravados[codigo] = 0
+            continue
+        bmk, base = catalogo[codigo], pontos[0][1]
+        sessao.execute(delete(BenchmarkValor).where(BenchmarkValor.benchmark_id == bmk.id))
+        sessao.add_all(BenchmarkValor(benchmark_id=bmk.id, data=dia,
+                                      valor=round(valor / base * 100.0, 6))
+                       for dia, valor in pontos)
+        sessao.commit()
+        gravados[codigo] = len(pontos)
+    return gravados
 
 
 def serie(sessao: Session, codigo: str,

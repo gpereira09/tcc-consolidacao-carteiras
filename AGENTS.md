@@ -53,7 +53,7 @@ Os checklists completos estão em [`docs/guardioes/`](docs/guardioes/). Aplique 
 | Apresentação | `ui/` (Streamlit + Plotly) | Sem regra de negócio nem cálculo. Use `ui/comum.py` e `ui/estilo.py`. |
 | Aplicação e domínio | `src/`, `src/calc/` | Não importa `streamlit`. |
 | Persistência | `src/models.py`, `src/db.py` | SQLAlchemy 2.0 sobre SQLite (WAL). Nada de SQL bruto preso ao dialeto fora de `src/db.py`. |
-| Integração | `src/market/` | Yahoo Finance e PTAX do BCB, com cache e fallback para o último valor. |
+| Integração | `src/market/` | Yahoo Finance, Banco Central (PTAX e SGS) e B3 (IFIX), com cache e fallback para o último valor. |
 
 Outras regras de arquitetura:
 - `src/schema.py` é a fonte única das colunas dos templates. O gerador (`src/templates_xlsx.py`) e o validador (`src/ingest.py`) leem dele.

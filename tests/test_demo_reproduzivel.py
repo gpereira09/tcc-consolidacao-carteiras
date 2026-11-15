@@ -1,6 +1,6 @@
 """
-C1 — a carga demonstrativa é reproduzível: com a mesma data de referência,
-os números são os mesmos em qualquer dia e máquina. Os valores conferidos
+C1 — a carga demonstrativa com séries simuladas (`--simulado`) é reproduzível:
+com a mesma data de referência, os números são os mesmos em qualquer dia e máquina. Os valores conferidos
 aqui são os publicados no README e no texto do TCC.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_seed_na_data_de_referencia(monkeypatch, capsys):
     import seed_demo
 
     monkeypatch.setenv("CARTEIRA_DATA_REFERENCIA", "")
-    assert seed_demo.main(["--data", "2026-09-22"]) == 0
+    assert seed_demo.main(["--data", "2026-09-22", "--simulado"]) == 0
     saida = capsys.readouterr().out
     assert "data de referência: 22/09/2026" in saida
 

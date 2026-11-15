@@ -5,16 +5,18 @@ Executa a jornada completa do sistema em um único comando:
    1. recria o schema;
    2. gera os três templates XLSX;
    3. cria os usuários dos três perfis (RBAC);
-   4. popula câmbio e benchmarks;
+   4. coleta câmbio (PTAX, Banco Central) e benchmarks (Banco Central, Yahoo e B3);
    5. importa os três templates preenchidos com os dados de exemplo;
-   6. gera as séries de preço dos ativos listados;
+   6. coleta o histórico de preços dos ativos listados (Yahoo Finance);
    7. imprime o resumo consolidado apurado pelo sistema.
 
-Todas as séries e o resumo final usam uma DATA DE REFERÊNCIA explícita
-(padrão: config.DATA_REFERENCIA_DEMO). Com a mesma data, os números são
-idênticos em qualquer dia e em qualquer máquina.
+As posições, os fundos e os imóveis são os exemplos dos templates; as séries
+de mercado são as reais até a DATA DE REFERÊNCIA (padrão:
+config.DATA_REFERENCIA_DEMO). Sem internet, ou com `--simulado`, as séries são
+geradas por simulação determinística (fonte SIMULADO): com a mesma data, os
+números são idênticos em qualquer dia e em qualquer máquina.
 
-Uso:  python scripts/seed_demo.py [--data AAAA-MM-DD]
+Uso:  python scripts/seed_demo.py [--data AAAA-MM-DD] [--simulado]
 """
 from __future__ import annotations
 
@@ -33,7 +35,7 @@ import config
 from src import ingest, security
 from src.calc import consolidacao
 from src.db import SessionLocal, resetar_schema
-from src.market import seed_sintetico
+from src.market import benchmarks, cambio, precos, seed_sintetico
 from src.models import Ativo, Carteira, Cliente, Posicao, Usuario
 from src.templates_xlsx import gerar_todos
 
@@ -48,17 +50,43 @@ def titulo(texto: str) -> None:
     print(f"\n{'─' * 72}\n{texto}\n{'─' * 72}")
 
 
-def _argumentos(argv: list[str] | None) -> date:
+def _argumentos(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Carga demonstrativa.")
     parser.add_argument("--data", type=date.fromisoformat,
                         default=config.DATA_REFERENCIA_DEMO,
                         help="data de referência AAAA-MM-DD "
                              f"(padrão {config.DATA_REFERENCIA_DEMO:%Y-%m-%d})")
-    return parser.parse_args(argv).data
+    parser.add_argument("--simulado", action="store_true",
+                        help="não consulta a internet: gera as séries de mercado por simulação")
+    return parser.parse_args(argv)
+
+
+def _carregar_mercado(sessao, inicio: date, hoje: date, simulado: bool) -> bool:
+    """Câmbio e benchmarks. Devolve True se as séries tiverem de ser simuladas."""
+    moedas = [m for m in config.MOEDAS if m != "BRL"]
+    if not simulado:
+        coletadas = {m: cambio.atualizar_bcb(sessao, m, inicio, hoje) for m in moedas}
+        simulado = not any(coletadas.values())
+    if simulado:
+        print("    sem acesso às fontes externas: séries geradas por simulação (fonte SIMULADO)")
+        n_cambio = seed_sintetico.gerar_cambio(sessao, inicio, hoje)
+        n_bmk = seed_sintetico.gerar_benchmarks(sessao, inicio, hoje)
+        print(f"    {n_cambio} cotações de câmbio · {n_bmk} pontos de benchmark")
+        return True
+
+    for moeda, n in coletadas.items():
+        if not n:
+            n = seed_sintetico.gerar_cambio(sessao, inicio, hoje, moedas=(moeda,))
+        print(f"    câmbio {moeda}/BRL: {n} cotações "
+              f"({'PTAX/BCB' if coletadas[moeda] else 'SIMULADO'})")
+    for codigo, n in benchmarks.atualizar(sessao, inicio, hoje).items():
+        print(f"    benchmark {codigo}: {f'{n} pontos coletados' if n else 'fonte indisponível'}")
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:
-    hoje = _argumentos(argv)
+    args = _argumentos(argv)
+    hoje = args.data
     os.environ["CARTEIRA_DATA_REFERENCIA"] = hoje.isoformat()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -93,12 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     sessao.commit()
     print(f"    carteira: {carteira.nome} ({carteira.id[:8]}…) · moeda base {cliente.moeda_base}")
 
-    titulo("4/7 · Populando câmbio e benchmarks (dados SIMULADOS)")
-    inicio_mercado = date(2019, 1, 1)
+    titulo("4/7 · Carregando câmbio e benchmarks")
     print(f"    data de referência: {hoje:%d/%m/%Y}")
-    n_cambio = seed_sintetico.gerar_cambio(sessao, inicio_mercado, hoje)
-    n_bmk = seed_sintetico.gerar_benchmarks(sessao, inicio_mercado, hoje)
-    print(f"    {n_cambio} cotações de câmbio · {n_bmk} pontos de benchmark")
+    simulado = _carregar_mercado(sessao, config.INICIO_SERIES_MERCADO, hoje, args.simulado)
 
     titulo("5/7 · Importando os três templates")
     total_importado = 0
@@ -126,24 +151,33 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    ✓ {chave:<9} lidas={log.linhas_lidas:>3}  "
               f"importadas={log.linhas_importadas:>3}  rejeitadas={log.linhas_rejeitadas:>3}")
 
-    titulo("6/7 · Gerando séries de preço dos ativos listados (SIMULADO)")
+    titulo("6/7 · Carregando o histórico de preços dos ativos listados")
     listados = sessao.scalars(
         select(Ativo)
         .join(Posicao, Posicao.ativo_id == Ativo.id)
         .where(Posicao.carteira_id == carteira.id, Ativo.possui_ticker_listado.is_(True))
         .distinct()
     ).all()
-    total_precos = 0
+    total_precos, sem_cotacao = 0, []
     for ativo in listados:
         pos = sessao.scalar(
             select(Posicao).where(Posicao.carteira_id == carteira.id,
                                   Posicao.ativo_id == ativo.id)
         )
-        total_precos += seed_sintetico.gerar_precos_ativo(
-            sessao, ativo, pos.preco_medio, pos.data_inicial, hoje
-        )
+        if simulado:
+            n = seed_sintetico.gerar_precos_ativo(
+                sessao, ativo, pos.preco_medio, pos.data_inicial, hoje
+            )
+        else:
+            n = precos.carregar_historico(sessao, ativo, pos.data_inicial, hoje)
+            if not n:
+                sem_cotacao.append(ativo.ticker_canonico)
+        total_precos += n
     sessao.commit()
     print(f"    {len(listados)} ativos · {total_precos} cotações diárias")
+    if sem_cotacao:
+        print(f"    sem cotação na fonte externa, mantido o preço do template (RN-007): "
+              f"{', '.join(sem_cotacao)}")
 
     titulo("7/7 · Consolidação apurada pelo sistema")
     snap = consolidacao.snapshot(sessao, carteira.id, hoje)

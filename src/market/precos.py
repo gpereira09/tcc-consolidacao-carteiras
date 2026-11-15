@@ -109,6 +109,41 @@ def _coletar_yahoo(simbolo: str, dias: int = 7) -> tuple[date, float] | None:
         return None
 
 
+def _historico_yahoo(simbolo: str, inicio: date, fim: date) -> list[tuple[date, float]]:
+    """Fechamentos diários válidos do período; lista vazia em qualquer falha."""
+    try:
+        import yfinance
+        hist = yfinance.Ticker(simbolo).history(
+            start=inicio, end=fim + timedelta(days=1), auto_adjust=False
+        )
+        fechamentos = hist["Close"].dropna()
+        fechamentos = fechamentos[fechamentos > 0]
+        return [(indice.date(), float(valor)) for indice, valor in fechamentos.items()]
+    except Exception:
+        return []
+
+
+def carregar_historico(sessao: Session, ativo: Ativo, inicio: date,
+                       fim: date | None = None, coletor=_historico_yahoo) -> int:
+    """
+    RF-008 — grava a série diária de fechamentos do ativo listado no período.
+    Datas que já têm preço (informado no template ou lançado manualmente) são
+    preservadas, porque o dado do usuário é a fonte primária (RN-007).
+    Devolve a quantidade de cotações coletadas; zero em falha da fonte.
+    """
+    if not ativo.possui_ticker_listado:
+        return 0
+    pontos = coletor(ticker_externo(sessao, ativo), inicio, fim or date.today())
+    existentes = set(sessao.scalars(
+        select(PrecoHistorico.data).where(PrecoHistorico.ativo_id == ativo.id)
+    ))
+    sessao.add_all(
+        PrecoHistorico(ativo_id=ativo.id, data=dia, preco_fechamento=preco, fonte=FONTE_YAHOO)
+        for dia, preco in pontos if dia not in existentes
+    )
+    return len(pontos)
+
+
 SETORES_PT = {
     "Technology": "Tecnologia", "Financial Services": "Financeiro",
     "Energy": "Petróleo e Gás", "Basic Materials": "Mineração e Materiais",

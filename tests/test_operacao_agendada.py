@@ -30,9 +30,11 @@ class TestOperacao:
     def test_coleta_agendada_tolera_falha_de_rede(self, sessao, carteira, monkeypatch):
         cadastrar_acao(sessao, carteira, "VALE3", quantidade=1, preco=60, dia=date(2024, 1, 1))
         monkeypatch.setattr(precos, "_coletar_yahoo", lambda *a, **k: None)
-        resumo = agendador.coletar_precos(coletor_cambio=lambda s, m, i: 0)
+        resumo = agendador.coletar_precos(coletor_cambio=lambda s, m, i: 0,
+                                          coletor_benchmarks=lambda s, i: {"CDI": 0})
         assert resumo.ativos == 1 and resumo.falhas == ["VALE3"]
         assert resumo.cambio == {"USD": 0, "EUR": 0, "GBP": 0}
+        assert resumo.benchmarks == {"CDI": 0}
 
     def test_coleta_yahoo_ignora_fechamento_vazio(self, monkeypatch):
         """RF-008: pregão com fechamento NaN não vira preço; vale o último válido."""
