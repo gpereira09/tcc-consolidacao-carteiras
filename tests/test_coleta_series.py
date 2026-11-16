@@ -53,6 +53,35 @@ class TestBenchmarks:
         assert benchmarks.atualizar(sessao, INICIO, FIM, {"CDI": lambda i, f: []}) == {"CDI": 0}
         assert benchmarks.serie(sessao, "CDI") == antes
 
+    def test_indice_sem_serie_e_recoletado_ate_a_fonte_responder(self, sessao):
+        pontos = [(date(2024, 1, 2), 10.0), (date(2024, 1, 3), 11.0)]
+        chamadas = {"IBOV": 0, "CDI": 0}
+
+        def ibov(inicio, fim):
+            chamadas["IBOV"] += 1
+            return pontos if chamadas["IBOV"] >= 3 else []
+
+        def cdi(inicio, fim):
+            chamadas["CDI"] += 1
+            return pontos
+
+        coletores = {"IBOV": ibov, "CDI": cdi}
+        assert benchmarks.atualizar(sessao, INICIO, FIM, coletores) == {"IBOV": 0, "CDI": 2}
+
+        # Só o índice sem série volta à fonte; o que já tem pontos não é consultado de novo.
+        assert benchmarks.recoletar_faltantes(sessao, INICIO, FIM, coletores, espera=0) == {"IBOV": 2}
+        assert chamadas == {"IBOV": 3, "CDI": 1}
+        assert len(benchmarks.serie(sessao, "IBOV")) == 2
+        assert benchmarks.recoletar_faltantes(sessao, INICIO, FIM, coletores, espera=0) == {}
+
+    def test_recoleta_desiste_depois_das_tentativas(self, sessao):
+        chamadas = []
+        coletores = {"IBOV": lambda i, f: chamadas.append(1) or []}
+        assert benchmarks.recoletar_faltantes(sessao, INICIO, FIM, coletores,
+                                              tentativas=2, espera=0) == {"IBOV": 0}
+        assert len(chamadas) == 2
+        assert benchmarks.serie(sessao, "IBOV") == []
+
     def test_cdi_e_ipca_acumulam_as_taxas_do_bcb(self, monkeypatch):
         monkeypatch.setattr(benchmarks, "_sgs",
                             lambda serie, i, f: [(date(2024, 1, 2), 1.0), (date(2024, 1, 3), 2.0)])

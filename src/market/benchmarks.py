@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -185,6 +186,33 @@ def atualizar(sessao: Session, inicio: date, fim: date | None = None,
         sessao.commit()
         gravados[codigo] = len(pontos)
     return gravados
+
+
+def recoletar_faltantes(sessao: Session, inicio: date, fim: date | None = None,
+                        coletores: dict | None = None, tentativas: int = 3,
+                        espera: float = 15.0) -> dict[str, int]:
+    """
+    Repete a coleta dos índices que ficaram sem nenhum ponto armazenado. O Yahoo
+    Finance às vezes recusa as primeiras consultas e volta a responder em
+    seguida; sem a repetição, o índice só apareceria na coleta diária seguinte.
+    Devolve os pontos gravados por índice recoletado (vazio se nada faltava).
+    """
+    coletores = coletores or COLETORES
+    catalogo = garantir_catalogo(sessao)
+    resultado: dict[str, int] = {}
+    for tentativa in range(tentativas):
+        faltam = {
+            codigo: coletor for codigo, coletor in coletores.items()
+            if sessao.scalar(select(BenchmarkValor.id)
+                             .where(BenchmarkValor.benchmark_id == catalogo[codigo].id)
+                             .limit(1)) is None
+        }
+        if not faltam:
+            break
+        if tentativa:
+            time.sleep(espera)
+        resultado.update(atualizar(sessao, inicio, fim, faltam))
+    return resultado
 
 
 def serie(sessao: Session, codigo: str,
