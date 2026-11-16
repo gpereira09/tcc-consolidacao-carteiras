@@ -175,6 +175,12 @@ def main(argv: list[str] | None = None) -> int:
         total_precos += n
     sessao.commit()
     print(f"    {len(listados)} ativos · {total_precos} cotações diárias")
+    if not simulado:
+        # O Yahoo pode recusar as primeiras consultas da carga, que são as dos índices.
+        recoletados = benchmarks.recoletar_faltantes(sessao, config.INICIO_SERIES_MERCADO, hoje)
+        for codigo, n in recoletados.items():
+            print(f"    benchmark {codigo}, nova coleta: "
+                  f"{f'{n} pontos coletados' if n else 'fonte indisponível'}")
     if sem_cotacao:
         print(f"    sem cotação na fonte externa, mantido o preço do template (RN-007): "
               f"{', '.join(sem_cotacao)}")
