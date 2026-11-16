@@ -105,8 +105,7 @@ def _usuarios(sessao, admin) -> None:
             except ValueError as erro:
                 comum.falha(erro)
             else:
-                st.success("Conta atualizada.")
-                st.rerun()
+                comum.sucesso("Conta atualizada.")
 
     st.markdown("## Excluir conta")
     st.caption("Remove cadastro e patrimônio da conta e anonimiza sua trilha de auditoria "
@@ -125,9 +124,8 @@ def _usuarios(sessao, admin) -> None:
             except ValueError as erro:
                 comum.falha(erro)
             else:
-                st.success(f"Conta excluída: {contagem['carteiras']} carteira(s) e "
-                           f"{contagem['posicoes']} posição(ões) removidas.")
-                st.rerun()
+                comum.sucesso(f"Conta excluída: {contagem['carteiras']} carteira(s) e "
+                              f"{contagem['posicoes']} posição(ões) removidas.")
 
 
 def _vinculos(sessao, admin) -> None:
@@ -156,8 +154,7 @@ def _vinculos(sessao, admin) -> None:
         except ValueError as erro:
             comum.falha(erro)
         else:
-            st.success("Vínculo atualizado.")
-            st.rerun()
+            comum.sucesso("Vínculo atualizado.")
 
 
 def _operacao(sessao) -> None:

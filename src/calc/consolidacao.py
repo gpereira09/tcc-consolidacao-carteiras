@@ -746,3 +746,33 @@ def resumo_imoveis(sessao: Session, carteira_id: str) -> list[dict]:
             "Última avaliação": imovel.data_avaliacao,
         })
     return sorted(saida, key=lambda d: d["Valor de mercado"], reverse=True)
+
+
+def totais_imoveis(sessao: Session, linhas: list[dict], moeda_base: str,
+                   dia: date | None = None) -> dict:
+    """
+    Totais dos imóveis na moeda base (RN-009).
+
+    Cada imóvel é convertido da sua moeda pela taxa de `dia` antes de entrar
+    na soma: somar valores de moedas diferentes não produz um número com
+    significado. Aquisição e valor de mercado usam a mesma taxa, de modo que
+    a valorização total reflete só a variação dos imóveis, sem efeito cambial.
+    Moedas sem taxa disponível ficam fora dos totais e são devolvidas em
+    `sem_cambio`.
+    """
+    dia = dia or config.hoje()
+    leitor = _Leitor(sessao)
+    totais = {"Valor de mercado": 0.0, "Aquisição": 0.0, "Renda líq. anual": 0.0}
+    sem_cambio: set[str] = set()
+    for linha in linhas:
+        convertidos = {}
+        for campo in totais:
+            valor, ok = leitor.converter(linha[campo], linha["Moeda"], moeda_base, dia)
+            if not ok:
+                sem_cambio.add(linha["Moeda"])
+                break
+            convertidos[campo] = valor
+        else:
+            for campo, valor in convertidos.items():
+                totais[campo] += valor
+    return {**totais, "sem_cambio": sorted(sem_cambio)}

@@ -113,7 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         u = security.criar_conta(
             sessao, email=email, nome=nome, senha=senha,
             consentimento_lgpd=True, perfil=perfil,
-            cpf="000.000.000-00" if perfil == "CLIENTE" else None,
+            # CPF fictício, com dígitos verificadores válidos
+            cpf="123.456.789-09" if perfil == "CLIENTE" else None,
         )
         usuarios[perfil] = u
         print(f"    {perfil:<12} {email}  (senha: {senha})")

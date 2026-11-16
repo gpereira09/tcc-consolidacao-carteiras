@@ -64,17 +64,21 @@ def _transacao(sessao, carteira) -> None:
         if tipo == "PROVENTO":
             with col2:
                 valor = st.number_input(f"Valor total recebido ({ativo.moeda})",
-                                        min_value=0.0, step=10.0, format="%.2f")
+                                        min_value=0.0, step=10.0, format="%.2f",
+                                        key=comum.chave_campo("transacao", "provento"))
             quantidade, preco, taxas = 0.0, valor, 0.0
         else:
             with col2:
                 quantidade = st.number_input("Quantidade", min_value=0.0, step=1.0,
-                                             format="%.6f")
+                                             format="%.6f",
+                                             key=comum.chave_campo("transacao", "quantidade"))
                 taxas = st.number_input(f"Taxas ({ativo.moeda})", min_value=0.0,
-                                        step=1.0, format="%.2f")
+                                        step=1.0, format="%.2f",
+                                        key=comum.chave_campo("transacao", "taxas"))
             with col3:
                 preco = st.number_input(f"Preço unitário ({ativo.moeda})", min_value=0.0,
-                                        step=0.01, format="%.4f")
+                                        step=0.01, format="%.4f",
+                                        key=comum.chave_campo("transacao", "preco"))
         enviar = st.form_submit_button("Registrar", type="primary")
 
     if enviar:
@@ -85,8 +89,12 @@ def _transacao(sessao, carteira) -> None:
         except ValueError as erro:
             comum.falha(erro)
         else:
-            st.success(f"{ROTULO_TIPO[tipo]} registrada. Posição e preço médio atualizados.")
-            st.rerun()
+            detalhe = (comum.moeda(preco, ativo.moeda) if tipo == "PROVENTO" else
+                       f"{comum.numero(quantidade, 4)} a {comum.moeda(preco, ativo.moeda)}")
+            comum.sucesso(
+                f"Lançamento registrado: {ROTULO_TIPO[tipo]} de {ativo.ticker_canonico}, "
+                f"{detalhe}, em {data_t:%d/%m/%Y}. Posição e preço médio atualizados.",
+                limpar="transacao")
 
     historico = operacoes.transacoes(sessao, pos.id)
     if historico:
@@ -181,5 +189,4 @@ def _carteira(sessao, carteira) -> None:
         comum.falha(erro)
         return
     st.session_state.carteira_id = nova.id
-    st.success("Carteira criada e selecionada.")
-    st.rerun()
+    comum.sucesso(f"Carteira “{nova.nome}” criada e selecionada.")

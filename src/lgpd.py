@@ -393,8 +393,8 @@ def corrigir_cadastro(
         raise ValueError("Usuário inexistente.")
     security.aplicar_limite(f"reauth:{usuario.id}")
     if not security.reautenticar(usuario, senha, codigo_2fa):
-        raise ValueError("Reautenticação falhou: senha"
-                         + (" ou código 2FA" if usuario.totp_ativo else "") + " incorreto(s).")
+        raise ValueError("Reautenticação falhou: senha ou código 2FA incorretos."
+                         if usuario.totp_ativo else "Reautenticação falhou: senha incorreta.")
 
     cliente = sessao.scalar(select(Cliente).where(Cliente.usuario_id == usuario_id))
     if cliente is None and any(v is not None for v in (nome, cpf, moeda_base, perfil_risco)):
