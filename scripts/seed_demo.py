@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -44,6 +45,10 @@ CONTAS = [
     ("assessor@exemplo.com", "Marcos Tavares", "Senha123", "COLABORADOR"),
     ("admin@exemplo.com", "Administrador do Sistema", "Senha123", "ADMIN"),
 ]
+
+
+NOVAS_TENTATIVAS = 2
+ESPERA_NOVA_TENTATIVA = 10  # segundos
 
 
 def titulo(texto: str) -> None:
@@ -158,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         .where(Posicao.carteira_id == carteira.id, Ativo.possui_ticker_listado.is_(True))
         .distinct()
     ).all()
-    total_precos, sem_cotacao = 0, []
+    total_precos, pendentes = 0, []
     for ativo in listados:
         pos = sessao.scalar(
             select(Posicao).where(Posicao.carteira_id == carteira.id,
@@ -171,12 +176,26 @@ def main(argv: list[str] | None = None) -> int:
         else:
             n = precos.carregar_historico(sessao, ativo, pos.data_inicial, hoje)
             if not n:
-                sem_cotacao.append(ativo.ticker_canonico)
+                pendentes.append((ativo, pos))
         total_precos += n
+    # O Yahoo às vezes deixa de responder por alguns segundos: os ativos que
+    # ficaram sem cotação são consultados de novo antes de valer o template.
+    for _ in range(NOVAS_TENTATIVAS):
+        if not pendentes:
+            break
+        time.sleep(ESPERA_NOVA_TENTATIVA)
+        ainda_pendentes = []
+        for ativo, pos in pendentes:
+            n = precos.carregar_historico(sessao, ativo, pos.data_inicial, hoje)
+            if not n:
+                ainda_pendentes.append((ativo, pos))
+            total_precos += n
+        pendentes = ainda_pendentes
+    sem_cotacao = [ativo.ticker_canonico for ativo, _ in pendentes]
     sessao.commit()
     print(f"    {len(listados)} ativos · {total_precos} cotações diárias")
     if not simulado:
-        # O Yahoo pode recusar as primeiras consultas da carga, que são as dos índices.
+        # As consultas dos índices são as primeiras da carga e as mais sujeitas à falha.
         recoletados = benchmarks.recoletar_faltantes(sessao, config.INICIO_SERIES_MERCADO, hoje)
         for codigo, n in recoletados.items():
             print(f"    benchmark {codigo}, nova coleta: "
