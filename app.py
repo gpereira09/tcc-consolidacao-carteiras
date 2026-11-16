@@ -15,6 +15,7 @@ RAIZ = Path(__file__).resolve().parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+import html
 import os
 
 import streamlit as st
@@ -53,7 +54,7 @@ def barra_lateral() -> str:
     with st.sidebar:
         st.markdown("### Consolidação de Carteiras")
         st.markdown(
-            f'<div class="sidebar-identidade">{usuario.email}<br>'
+            f'<div class="sidebar-identidade">{html.escape(usuario.email)}<br>'
             f'Perfil: {usuario.perfil.title()}</div>',
             unsafe_allow_html=True,
         )
@@ -103,6 +104,7 @@ def main() -> None:
     comum.nova_sessao()
 
     if not comum.autenticado():
+        comum.mostrar_aviso()
         login.render()
         return
 
@@ -123,6 +125,7 @@ def main() -> None:
     if usuario.perfil not in perfis:
         st.error("Você não tem permissão para acessar esta tela.")
         return
+    comum.mostrar_aviso()
     funcao()
 
 

@@ -30,6 +30,7 @@ import config
 from src import audit, security
 from src.calc import pe
 from src.calc.consolidacao import fundos_da_carteira
+from src.formatacao import numero
 from src.ingest import (
     pais_do_mercado,
     semantica_liquidos,
@@ -271,8 +272,17 @@ def registrar_evento_pe(
     sessao: Session, usuario: Usuario, fundo: AtivoIliquido, *,
     tipo: str, data_evento: date, valor: float, status: str,
     nav_unidade: float | None = None, subtipo: str | None = None,
-    observacao: str | None = None,
+    observacao: str | None = None, confirmar_acima_do_nav: bool = False,
 ) -> EventoPE:
+    """
+    Registra chamada, distribuição ou marcação de NAV.
+
+    Uma distribuição maior que o NAV atual zera o valor residual do fundo e
+    muda DPI, TVPI, IRR e a rentabilidade da carteira inteira. Ela pode ser
+    legítima (saída acima da última marcação), mas é também o efeito típico
+    de um erro de digitação; por isso só é aceita com
+    `confirmar_acima_do_nav`.
+    """
     _autorizar(sessao, usuario, _carteira_do_fundo(sessao, fundo))
     _exigir_dominio(tipo, config.TIPOS_EVENTO_PE, "Tipo de evento inválido")
     if valor is None or valor <= 0:
@@ -295,6 +305,12 @@ def registrar_evento_pe(
             raise ErroOperacao("Classifique a distribuição: retorno de capital, "
                                "ganho de capital ou rendimento (RF-012).")
         _validar(pe.validar_distribuicao, fundo, valor, sessao)
+        nav = pe.calcular(fundo, sessao).nav
+        if valor > nav + config.TOLERANCIA_COMMITMENT and not confirmar_acima_do_nav:
+            raise ErroOperacao(
+                f"A distribuição de {numero(valor)} é maior que o NAV atual do fundo "
+                f"({numero(nav)}) e zeraria o valor residual. Confira o valor; se "
+                "estiver correto, marque a confirmação e registre novamente.")
         status = "RECEBIDO"
     else:
         _exigir_nao_futura(data_evento, "A data de referência do NAV não pode ser futura.")
@@ -351,6 +367,38 @@ def confirmar_capital_call(
     audit.registrar(sessao, usuario_id=usuario.id, acao=audit.REGISTRAR_EVENTO_PE,
                     entidade="EVENTO_PE", entidade_id=evento.id, dados_anteriores=anterior,
                     dados_novos={"status": "PAGO", "data": str(data_pagamento)})
+    sessao.commit()
+    return evento
+
+
+def cancelar_evento_pe(sessao: Session, usuario: Usuario, evento_id: str) -> EventoPE:
+    """
+    Estorno de chamada ou distribuição lançada por engano. O evento não é
+    apagado: passa a CANCELADO, sai dos cálculos e continua na lista e na
+    trilha de auditoria. Marcação de NAV não se cancela; corrige-se com uma
+    nova marcação.
+    """
+    evento = sessao.get(EventoPE, evento_id)
+    if evento is None or evento.status == "CANCELADO" \
+            or "CANCELADO" not in config.STATUS_POR_TIPO_EVENTO[evento.tipo_evento]:
+        raise ErroOperacao("Só chamadas e distribuições ainda não canceladas podem "
+                           "ser canceladas.")
+    fundo = sessao.get(AtivoIliquido, evento.fundo_id)
+    _autorizar(sessao, usuario, _carteira_do_fundo(sessao, fundo))
+
+    anterior = {"status": evento.status}
+    evento.status = "CANCELADO"
+    sessao.flush()
+    m = pe.recalcular_metricas(sessao, fundo)
+    if m.distribuicoes > 0 and m.paid_in <= 0:
+        sessao.rollback()
+        raise ErroOperacao("RN-005: esta chamada não pode ser cancelada enquanto houver "
+                           "distribuição registrada; o fundo ficaria sem capital "
+                           "integralizado. Cancele antes a distribuição.")
+    audit.registrar(sessao, usuario_id=usuario.id, acao=audit.REGISTRAR_EVENTO_PE,
+                    entidade="EVENTO_PE", entidade_id=evento.id, dados_anteriores=anterior,
+                    dados_novos={"status": "CANCELADO", "tipo": evento.tipo_evento,
+                                 "valor": evento.valor, "data": str(evento.data_evento)})
     sessao.commit()
     return evento
 

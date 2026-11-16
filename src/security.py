@@ -212,6 +212,8 @@ def normalizar_cpf(cpf: str | None) -> str | None:
     """
     digitos = re.sub(r"\D", "", cpf or "")
     if not digitos:
+        if (cpf or "").strip():
+            raise ValueError("CPF inválido.")
         return None
     if len(digitos) != 11 or digitos == digitos[0] * 11:
         raise ValueError("CPF inválido.")
@@ -537,10 +539,16 @@ def exigir_politica_senha(senha: str) -> None:
         raise ValueError(" ".join(erros))
 
 
+# Formato usuario@dominio.tld só com caracteres comuns de e-mail. Ficam de fora
+# espaços, aspas e os sinais < e >, que permitiriam inserir HTML num campo que
+# é exibido nas telas.
+_EMAIL_VALIDO = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+")
+
+
 def validar_email_novo(sessao: Session, email: str) -> str:
     """Normaliza o e-mail e garante que é válido e ainda não cadastrado."""
     email = (email or "").strip().lower()
-    if "@" not in email or "." not in email.split("@")[-1]:
+    if not _EMAIL_VALIDO.fullmatch(email):
         raise ValueError("E-mail inválido.")
     if _usuario_por_email(sessao, email):
         raise ValueError("Já existe uma conta com este e-mail.")
@@ -567,6 +575,7 @@ def criar_conta(
         raise ValueError("É obrigatório aceitar o termo de consentimento LGPD.")
     email = validar_email_novo(sessao, email)
     exigir_politica_senha(senha)
+    cpf = normalizar_cpf(cpf)
 
     usuario = Usuario(email=email, senha_hash=hash_senha(senha), perfil=perfil)
     sessao.add(usuario)

@@ -11,6 +11,10 @@ from src.calc import consolidacao, pe
 from ui import comum, estilo
 
 
+ROTULO_EVENTO = {"CAPITAL_CALL": "Capital call", "DISTRIBUICAO": "Distribuição",
+                 "NAV_UPDATE": "NAV update"}
+
+
 def render() -> None:
     carteira = comum.exigir_carteira()
     sessao = comum.sessao()
@@ -115,6 +119,7 @@ def _detalhe(sessao, fundo, m: pe.MetricasPE) -> None:
     with aba_evt:
         _lista_eventos(eventos, moeda)
         _confirmar_pendente(sessao, fundo, eventos, moeda)
+        _cancelar_evento(sessao, fundo, eventos, moeda)
     with aba_novo:
         _formulario_evento(sessao, fundo, m)
 
@@ -153,7 +158,7 @@ def _lista_eventos(eventos, moeda: str) -> None:
     tabela = pd.DataFrame([
         {
             "Data": e.data_evento.strftime("%d/%m/%Y"),
-            "Tipo": e.tipo_evento.replace("_", " ").title()
+            "Tipo": ROTULO_EVENTO.get(e.tipo_evento, e.tipo_evento)
             + (f" · {comum.ROTULO_DISTRIBUICAO.get(e.subtipo, e.subtipo)}" if e.subtipo else ""),
             "Valor": comum.moeda(e.valor, moeda),
             "Status": e.status.title(),
@@ -191,17 +196,49 @@ def _confirmar_pendente(sessao, fundo, eventos, moeda: str) -> None:
     except ValueError as erro:
         comum.falha(erro)
         return
-    st.success("Chamada confirmada como paga e métricas recalculadas (RN-012).")
-    st.rerun()
+    comum.sucesso("Chamada confirmada como paga. As métricas do fundo foram recalculadas.")
+
+
+def _cancelar_evento(sessao, fundo, eventos, moeda: str) -> None:
+    """Estorno de chamada ou distribuição lançada por engano."""
+    cancelaveis = {e.id: e for e in eventos
+                   if e.tipo_evento != "NAV_UPDATE" and e.status != "CANCELADO"}
+    if not cancelaveis:
+        return
+    with st.expander("Cancelar um evento lançado por engano"):
+        st.caption("O evento cancelado sai dos cálculos, mas continua na lista e na "
+                   "trilha de auditoria. Uma marcação de NAV errada é corrigida com "
+                   "uma nova marcação.")
+        with st.form(f"cancelar_{fundo.id}"):
+            escolhido = st.selectbox(
+                "Evento", list(cancelaveis),
+                format_func=lambda i: f"{cancelaveis[i].data_evento:%d/%m/%Y} · "
+                                      f"{ROTULO_EVENTO[cancelaveis[i].tipo_evento]} · "
+                                      f"{comum.moeda(cancelaveis[i].valor, moeda)}")
+            ciente = st.checkbox("Confirmo o cancelamento deste evento.",
+                                 key=comum.chave_campo(f"cancelar_{fundo.id}", "ciente"))
+            enviar = st.form_submit_button("Cancelar evento")
+        if not enviar:
+            return
+        if not ciente:
+            st.error("Marque a confirmação antes de cancelar o evento.")
+            return
+        try:
+            evento = operacoes.cancelar_evento_pe(sessao, comum.usuario_atual(), escolhido)
+        except ValueError as erro:
+            comum.falha(erro)
+            return
+        comum.sucesso(
+            f"Evento cancelado: {ROTULO_EVENTO[evento.tipo_evento]} de "
+            f"{comum.moeda(evento.valor, moeda)}. As métricas do fundo foram recalculadas.",
+            limpar=f"cancelar_{fundo.id}")
 
 
 def _formulario_evento(sessao, fundo, m) -> None:
-    tipo = st.radio("Tipo de evento", ["CAPITAL_CALL", "DISTRIBUICAO", "NAV_UPDATE"],
-                    horizontal=True, key=f"tipo_evento_{fundo.id}",
-                    format_func=lambda t: {"CAPITAL_CALL": "Capital call",
-                                           "DISTRIBUICAO": "Distribuição",
-                                           "NAV_UPDATE": "NAV update"}[t])
-    with st.form(f"evento_{fundo.id}"):
+    form = f"evento_{fundo.id}"
+    tipo = st.radio("Tipo de evento", list(ROTULO_EVENTO), horizontal=True,
+                    key=f"tipo_evento_{fundo.id}", format_func=ROTULO_EVENTO.get)
+    with st.form(form):
         col1, col2 = st.columns(2)
         with col1:
             data_evento = st.date_input(
@@ -209,9 +246,10 @@ def _formulario_evento(sessao, fundo, m) -> None:
                 value=config.hoje(), format="DD/MM/YYYY")
             rotulo_valor = ("NAV total da participação" if tipo == "NAV_UPDATE" else "Valor")
             valor = st.number_input(f"{rotulo_valor} ({m.moeda})", min_value=0.0,
-                                    step=1000.0, format="%.2f")
+                                    step=1000.0, format="%.2f",
+                                    key=comum.chave_campo(form, f"valor_{tipo}"))
         with col2:
-            status, subtipo, nav_unidade = "RECEBIDO", None, None
+            status, subtipo, nav_unidade, acima_do_nav = "RECEBIDO", None, None, False
             if tipo == "CAPITAL_CALL":
                 status = st.selectbox("Status", ["PAGO", "PENDENTE"],
                                       help="Chamada PENDENTE reduz o dry powder e conta "
@@ -222,10 +260,17 @@ def _formulario_evento(sessao, fundo, m) -> None:
                 subtipo = st.selectbox("Classificação (RF-012)",
                                        list(comum.ROTULO_DISTRIBUICAO),
                                        format_func=comum.ROTULO_DISTRIBUICAO.get)
+                st.caption(f"NAV atual: {comum.moeda(m.nav, m.moeda)}")
+                acima_do_nav = st.checkbox(
+                    "Confirmo uma distribuição maior que o NAV atual",
+                    key=comum.chave_campo(form, "acima_do_nav"),
+                    help="Só é necessário quando o valor excede o NAV atual, o que "
+                         "zera o valor residual do fundo.")
             else:
-                nav_unidade = st.number_input("NAV por cota (opcional)", min_value=0.0,
-                                              step=0.01, format="%.4f") or None
-        observacao = st.text_input("Observação")
+                nav_unidade = st.number_input(
+                    "NAV por cota (opcional)", min_value=0.0, step=0.01, format="%.4f",
+                    key=comum.chave_campo(form, "nav_unidade")) or None
+        observacao = st.text_input("Observação", key=comum.chave_campo(form, "observacao"))
         enviar = st.form_submit_button("Registrar evento", type="primary")
 
     if not enviar:
@@ -234,9 +279,11 @@ def _formulario_evento(sessao, fundo, m) -> None:
         operacoes.registrar_evento_pe(
             sessao, comum.usuario_atual(), fundo, tipo=tipo, data_evento=data_evento,
             valor=valor, status=status, nav_unidade=nav_unidade, subtipo=subtipo,
-            observacao=observacao)
+            observacao=observacao, confirmar_acima_do_nav=acima_do_nav)
     except ValueError as erro:
         comum.falha(erro)
         return
-    st.success("Evento registrado e métricas recalculadas (RN-012).")
-    st.rerun()
+    comum.sucesso(
+        f"Evento registrado: {ROTULO_EVENTO[tipo]} de {comum.moeda(valor, m.moeda)} em "
+        f"{data_evento:%d/%m/%Y}. As métricas do fundo foram recalculadas.",
+        limpar=form)

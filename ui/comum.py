@@ -86,6 +86,8 @@ def encerrar_sessao(revogar: bool = True) -> None:
     for chave in ("usuario_id", "token", "refresh", "carteira_id", "preview",
                   "preview_chave", "preview_carteira", "login_2fa", "totp_novo"):
         st.session_state.pop(chave, None)
+    if revogar:
+        st.session_state.pop("aviso_sucesso", None)
 
 
 def cliente_do_usuario(usuario: Usuario) -> Cliente | None:
@@ -101,6 +103,35 @@ def falha(erro: Exception) -> None:
     """Desfaz a transação pendente e exibe o erro de validação ao usuário."""
     sessao().rollback()
     st.error(str(erro))
+
+
+def sucesso(mensagem: str, limpar: str | None = None) -> None:
+    """
+    Confirma uma operação de escrita e recarrega a tela.
+
+    A mensagem é guardada na sessão e exibida na execução seguinte: um
+    `st.success` seguido de `st.rerun` some antes de o usuário ler. Com
+    `limpar`, os campos do formulário indicado voltam ao valor inicial, para
+    que os dados já gravados não fiquem prontos para um segundo envio.
+    """
+    st.session_state.aviso_sucesso = mensagem
+    if limpar:
+        chave = f"versao_form_{limpar}"
+        st.session_state[chave] = st.session_state.get(chave, 0) + 1
+    st.rerun()
+
+
+def mostrar_aviso() -> None:
+    """Exibe, uma única vez, a confirmação deixada por `sucesso`."""
+    mensagem = st.session_state.pop("aviso_sucesso", None)
+    if mensagem:
+        st.success(mensagem)
+
+
+def chave_campo(formulario: str, campo: str) -> str:
+    """Chave de widget que muda quando `sucesso(..., limpar=formulario)` é chamado."""
+    versao = st.session_state.get(f"versao_form_{formulario}", 0)
+    return f"{formulario}_{campo}_{versao}"
 
 
 def carteira_selecionada() -> Carteira | None:

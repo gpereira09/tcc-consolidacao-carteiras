@@ -54,7 +54,8 @@ def render() -> None:
         chave = st.selectbox("Tipo de template", list(TEMPLATES),
                              format_func=lambda c: ROTULOS[c])
     with direita:
-        arquivo = st.file_uploader("Arquivo XLSX preenchido", type=["xlsx"])
+        arquivo = st.file_uploader("Arquivo XLSX preenchido", type=["xlsx"],
+                                   key=comum.chave_campo("importacao", "arquivo"))
 
     if arquivo is not None:
         if st.button("Validar arquivo", type="primary"):
@@ -159,14 +160,19 @@ def _confirmar(sessao, prev, carteira_id: str) -> None:
     except ValueError as erro:
         comum.falha(erro)
         return
-    st.success(
-        f"Importação concluída: {log.linhas_importadas} linha(s) gravadas em "
-        f"{log.linhas_lidas} lidas."
+    _esquecer_preview()
+    comum.sucesso(
+        f"Importação concluída: {log.linhas_importadas} linha(s) gravada(s) de "
+        f"{log.linhas_lidas} lida(s) no arquivo {prev.nome_arquivo}.",
+        limpar="importacao",
     )
-    _limpar()
+
+
+def _esquecer_preview() -> None:
+    for chave in ("preview", "preview_chave", "preview_carteira"):
+        st.session_state.pop(chave, None)
 
 
 def _limpar() -> None:
-    for chave in ("preview", "preview_chave", "preview_carteira"):
-        st.session_state.pop(chave, None)
+    _esquecer_preview()
     st.rerun()

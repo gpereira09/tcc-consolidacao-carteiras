@@ -1,6 +1,10 @@
 """Privacidade, direitos do titular e segurança da conta (RF-027, RF-028; UC-17, UC-18; correção, seção 2.6.2)."""
 from __future__ import annotations
 
+import html
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 import streamlit as st
 
 import config
@@ -21,9 +25,10 @@ def render() -> None:
     st.markdown("## Dados sob tratamento")
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(comum.ficha("Titular", cliente.nome if cliente else usuario.email),
+        st.markdown(comum.ficha("Titular", html.escape(cliente.nome if cliente
+                                                       else usuario.email)),
                     unsafe_allow_html=True)
-        st.markdown(comum.ficha("E-mail de acesso", usuario.email),
+        st.markdown(comum.ficha("E-mail de acesso", html.escape(usuario.email)),
                     unsafe_allow_html=True)
     with col2:
         cpf = security.decifrar(cliente.cpf_cifrado) if cliente else None
@@ -35,7 +40,7 @@ def render() -> None:
             unsafe_allow_html=True,
         )
         consentimento = (
-            f"Registrado em {cliente.data_consentimento:%d/%m/%Y}"
+            f"Registrado em {_hora_local(cliente.data_consentimento):%d/%m/%Y}"
             if cliente and cliente.data_consentimento else "—"
         )
         st.markdown(comum.ficha("Consentimento", consentimento), unsafe_allow_html=True)
@@ -53,6 +58,16 @@ def render() -> None:
         _exclusao(sessao, usuario)
     with aba_seg:
         _seguranca(sessao, usuario)
+
+
+def _hora_local(instante: datetime) -> datetime:
+    """O banco guarda os instantes em UTC; a tela mostra no fuso do sistema."""
+    if instante.tzinfo is None:
+        instante = instante.replace(tzinfo=timezone.utc)
+    try:
+        return instante.astimezone(ZoneInfo(config.FUSO))
+    except Exception:  # base de fusos ausente no sistema: usa o fuso da máquina
+        return instante.astimezone()
 
 
 def _campo_2fa(usuario) -> str | None:
@@ -190,8 +205,8 @@ def _exclusao(sessao, usuario) -> None:
     if not enviar:
         return
     if not security.reautenticar(usuario, senha, codigo):
-        st.error("Reautenticação falhou: senha" + (" ou código 2FA" if usuario.totp_ativo else "")
-                 + " incorreto(s).")
+        st.error("Reautenticação falhou: senha ou código 2FA incorretos."
+                 if usuario.totp_ativo else "Reautenticação falhou: senha incorreta.")
         return
     if confirmacao.strip().upper() != "EXCLUIR":
         st.error("Digite EXCLUIR para confirmar a operação.")
@@ -207,14 +222,13 @@ def _exclusao(sessao, usuario) -> None:
         comum.falha(erro)
         return
     security.revogar_sessoes(sessao, usuario_id)
-    st.success(
+    comum.encerrar_sessao(revogar=False)
+    comum.sucesso(
         f"Conta excluída: {contagem['carteiras']} carteira(s), "
         f"{contagem['posicoes']} posição(ões) e {contagem['eventos']} evento(s) "
         f"removidos; {contagem['logs_anonimizados']} registro(s) de auditoria "
         f"anonimizado(s)."
     )
-    comum.encerrar_sessao(revogar=False)
-    st.rerun()
 
 
 def _qr_svg(uri: str) -> str | None:

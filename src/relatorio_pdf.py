@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 from datetime import datetime
 from functools import lru_cache
+from xml.sax.saxutils import escape
 
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing, Rect, String
@@ -56,8 +57,22 @@ def _pct(v: float | None, casas: int = 2) -> str:
     return formatacao.percentual(v, casas, vazio="n/d")
 
 
-def _duas_linhas(principal: str, secundario: str) -> str:
-    return f"{principal}<br/><font color='{NOTA_COR}'>{secundario}</font>"
+class _Marcado(str):
+    """Texto que já é marcação do ReportLab e não deve ser escapado de novo."""
+
+
+def _texto(valor) -> str:
+    """
+    Texto vindo dos dados, pronto para um Paragraph. O ReportLab interpreta o
+    conteúdo como marcação: sem o escape, "S&P 500" sai como "S&P; 500" e um
+    nome com "<" quebraria a geração do relatório.
+    """
+    return valor if isinstance(valor, _Marcado) else escape(str(valor))
+
+
+def _duas_linhas(principal: str, secundario: str) -> _Marcado:
+    return _Marcado(f"{escape(principal)}<br/>"
+                    f"<font color='{NOTA_COR}'>{escape(secundario)}</font>")
 
 
 @lru_cache(maxsize=1)
@@ -94,9 +109,9 @@ def _tabela(dados: list[list], larguras: list[float], alinhar_direita: set[int] 
             if isinstance(v, (Paragraph, Drawing)):
                 nova.append(v)
             elif i == 0 and cabecalho:
-                nova.append(Paragraph(str(v), est["cab_d"] if j in alinhar_direita else est["cab"]))
+                nova.append(Paragraph(_texto(v), est["cab_d"] if j in alinhar_direita else est["cab"]))
             else:
-                nova.append(Paragraph(str(v), est["cel_d"] if j in alinhar_direita else est["cel"]))
+                nova.append(Paragraph(_texto(v), est["cel_d"] if j in alinhar_direita else est["cel"]))
         linhas.append(nova)
     t = Table(linhas, colWidths=larguras, repeatRows=1 if cabecalho else 0)
     comandos = [
@@ -154,12 +169,12 @@ def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
     h: list = []
 
     h.append(Paragraph("Relatório de Carteira Consolidada", est["titulo"]))
-    identificacao = f"{titular} · " if titular else ""
+    identificacao = f"{escape(titular)} · " if titular else ""
     h.append(Paragraph(
-        f"{identificacao}{carteira_nome} · moeda base {base} · referência "
+        f"{identificacao}{escape(carteira_nome)} · moeda base {base} · referência "
         f"{snap.data:%d/%m/%Y} · emitido em {datetime.now():%d/%m/%Y %H:%M}", est["sub"]))
     for alerta in snap.alertas + (rent.alertas if rent is not None else []):
-        h.append(Paragraph(f"<b>Atenção:</b> {alerta}", est["nota"]))
+        h.append(Paragraph(f"<b>Atenção:</b> {escape(alerta)}", est["nota"]))
 
     por_liq = snap.por("liquidez")
     total = snap.patrimonio or 1.0
@@ -206,7 +221,7 @@ def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
     pos = [["Ativo", "Classe", "Moeda", "Qtd.", "Preço / NAV", f"Valor ({base})",
             f"Custo ({base})", "Retorno", "Part."]]
     for l in snap.linhas:
-        pos.append([_duas_linhas(l.nome[:34], l.ticker), l.classe_rotulo,
+        pos.append([_duas_linhas(l.nome[:60], l.ticker), l.classe_rotulo,
                     l.moeda, _qtd(l.quantidade), _num(l.preco_unitario, 2),
                     _num(l.valor_base, 0), _num(l.custo_base, 0), _pct(l.retorno, 1),
                     _pct(l.valor_base / total, 1)])
@@ -218,7 +233,7 @@ def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
         fd = [["Fundo", "Moeda", "Commitment", "Paid-in", "Dry powder", "Distrib.", "NAV",
                "DPI", "TVPI", "IRR"]]
         for m in metricas:
-            fd.append([_duas_linhas(m.nome[:30], m.gestor[:30]), m.moeda,
+            fd.append([_duas_linhas(m.nome[:60], m.gestor[:60]), m.moeda,
                        _num(m.commitment, 0), _num(m.paid_in, 0), _num(m.dry_powder, 0),
                        _num(m.distribuicoes, 0), _num(m.nav, 0), _num(m.dpi), _num(m.tvpi),
                        _pct(m.irr, 1)])
@@ -231,7 +246,7 @@ def gerar(carteira_nome: str, base: str, snap, rent, metricas, imoveis,
                "Renda líq. anual", "Yield líq.", "Avaliação"]]
         for i in imoveis:
             aval = i["Última avaliação"]
-            im.append([_duas_linhas(i["Imóvel"][:32], i["Identificador"]),
+            im.append([_duas_linhas(i["Imóvel"][:60], i["Identificador"]),
                        i["Tipo"], i["Moeda"], _num(i["Aquisição"], 0), _num(i["Valor de mercado"], 0),
                        _pct(i["Valorização"], 1), _num(i["Renda líq. anual"], 0),
                        _pct(i["Yield líq."], 1),
